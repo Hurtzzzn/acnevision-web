@@ -1,0 +1,41 @@
+# Dependencies dan hasil build
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+coverage/
+
+# Environment (jangan commit secret, .env.example tetap boleh)
+.env
+.env.*
+!.env.example
+*.local
+
+# Log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Editor dan OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code (CLAUDE.md dan pengaturan lokal tetap di komputer sendiri, skill di .claude/skills tetap di-commit)
+CLAUDE.md
+.claude/settings.local.json
+
+# Screenshot dan foto uji (bisa berisi wajah, jangan di-commit)
+screenshots/
+test-results/
+playwright-report/
+
+# Dokumen perencanaan proyek (tetap di komputer sendiri)
+docs/
+
+# Bobot model (tidak dipakai di repo web, cegah ter-commit tidak sengaja)
+*.pth
+*.pt
+*.onnx
