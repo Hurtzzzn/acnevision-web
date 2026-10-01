@@ -23,9 +23,14 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Claude Code (CLAUDE.md dan pengaturan lokal tetap di komputer sendiri, skill di .claude/skills tetap di-commit)
+# Alat AI (Claude Code, skill, dan file panduan desain) hanya di komputer sendiri, tidak masuk repo
 CLAUDE.md
-.claude/settings.local.json
+.claude/
+.agents/
+.impeccable/
+skills-lock.json
+PRODUCT.md
+DESIGN.md
 
 # Screenshot dan foto uji (bisa berisi wajah, jangan di-commit)
 screenshots/
