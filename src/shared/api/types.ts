@@ -1,6 +1,6 @@
 import type {
   AdminUser, AnalyzeOptions, AnalyzeResponse, AuditLogItem, ConversationItem, ConversationMessages,
-  Granularity, Me, ModelStats, Paginated, RecommendationResponse, ScanDetail, ScanListItem,
+  DetectOptions, DetectResponse, Granularity, Me, ModelStats, Paginated, RecommendationResponse, ScanDetail, ScanListItem,
   SendMessageResponse, TrendPoint, UsageStats, UserRole, UserStatus,
 } from '../types/api';
 
@@ -8,6 +8,8 @@ export interface DateRange { from: string; to: string; granularity: Granularity 
 
 /** Contract implemented by both the HTTP client and the offline mock (docs/05_API_SPEC.md). */
 export interface AcneApi {
+  /** Guest-safe detection: boxes and counts only, no class information. */
+  detect(image: File, opts?: DetectOptions): Promise<DetectResponse>;
   analyze(image: File, opts?: AnalyzeOptions): Promise<AnalyzeResponse>;
   getGradcam(analysisId: string, lesionIdx: number): Promise<string>;
 

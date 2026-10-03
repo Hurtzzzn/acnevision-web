@@ -3,6 +3,33 @@ export type Severity = 'clear' | 'mild' | 'moderate' | 'severe';
 
 export interface BBox { x1: number; y1: number; x2: number; y2: number }
 
+/** Detection only (guest path, POST /detect). Never carries class information (FR-SCAN-16). */
+export interface DetectedLesion {
+  idx: number;
+  bbox: BBox;
+  det_confidence: number;
+  label: 'Jerawat';
+}
+
+export interface DetectSummary {
+  total_lesions: number;
+  severity: Severity;
+  severity_is_estimate: boolean;
+}
+
+export interface DetectResponse {
+  detection_id: string;
+  is_guest: boolean;
+  image: { width: number; height: number };
+  lesions: DetectedLesion[];
+  summary: DetectSummary;
+  timing_ms: { detection: number };
+  model_version: string;
+  disclaimer: string;
+  advice: string;
+  upgrade: { message: string; unlocks: string[] } | null;
+}
+
 export interface Lesion {
   idx: number;
   bbox: BBox;
@@ -142,6 +169,12 @@ export interface AdminUser {
 export interface AuditLogItem {
   id: number; admin_email: string; action: string; target_email: string | null;
   details: Record<string, unknown>; created_at: string;
+}
+
+export interface DetectOptions {
+  source?: 'web' | 'mobile';
+  input_method?: 'camera' | 'upload';
+  mode?: 'capture' | 'preview';
 }
 
 export interface AnalyzeOptions {

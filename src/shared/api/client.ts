@@ -37,6 +37,14 @@ export function createApiClient({ baseURL, getToken }: ApiClientOptions): AcneAp
   }
 
   return {
+    detect(image, opts = {}) {
+      const form = new FormData();
+      form.append('image', image);
+      form.append('source', opts.source ?? 'web');
+      form.append('input_method', opts.input_method ?? 'upload');
+      form.append('mode', opts.mode ?? 'capture');
+      return call(() => http.post('/detect', form));
+    },
     analyze(image, opts = {}) {
       const form = new FormData();
       form.append('image', image);

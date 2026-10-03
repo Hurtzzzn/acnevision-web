@@ -8,6 +8,7 @@ import Home from './pages/Home';
 import HowItWorks from './pages/HowItWorks';
 import Scan from './pages/Scan';
 import Result from './pages/Result';
+import DetectResult from './pages/DetectResult';
 import About from './pages/About';
 import { Login, Register, ResetPassword } from './pages/Auth';
 
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="how-it-works" element={<HowItWorks />} />
             <Route path="scan" element={<Scan />} />
             <Route path="result" element={<Result />} />
+            <Route path="detect-result" element={<DetectResult />} />
             <Route path="about" element={<About />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />

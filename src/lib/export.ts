@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { CLASS_META, COPY, SEVERITY_META, type AcneClass, type AnalyzeResponse } from '@acnevision/shared';
+import { CLASS_META, COPY, SEVERITY_META, type AcneClass, type AnalyzeResponse, type DetectResponse } from '@acnevision/shared';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -45,6 +45,35 @@ function download(url: string, filename: string) {
 export async function downloadPng(src: string, analysis: AnalyzeResponse) {
   const c = await renderAnnotatedCanvas(src, analysis);
   download(c.toDataURL('image/png'), 'acnevision-hasil.png');
+}
+
+/** Guest detection image: neutral boxes numbered 1..n plus a footer strip with the count. No class information. */
+export async function downloadDetectionPng(src: string, detection: DetectResponse) {
+  const img = await loadImage(src);
+  const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
+  const W = Math.round(img.width * scale), H = Math.round(img.height * scale);
+  const font = Math.max(12, W / 55);
+  const footer = Math.round(font * 2.6);
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H + footer;
+  const g = c.getContext('2d')!;
+  g.drawImage(img, 0, 0, W, H);
+  g.font = `600 ${font}px Inter, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const r = font * 0.85;
+  for (const l of detection.lesions) {
+    const x = l.bbox.x1 * W, y = l.bbox.y1 * H;
+    g.strokeStyle = '#2563EB'; g.lineWidth = 2;
+    g.strokeRect(x, y, (l.bbox.x2 - l.bbox.x1) * W, (l.bbox.y2 - l.bbox.y1) * H);
+    const cx = Math.min(W - r, Math.max(r, x + r)), cy = Math.max(r, y - r - 2);
+    g.fillStyle = '#2563EB';
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff'; g.fillText(String(l.idx + 1), cx, cy + 1);
+  }
+  g.fillStyle = '#EFF6FF'; g.fillRect(0, H, W, footer);
+  g.fillStyle = '#1E40AF'; g.textAlign = 'left';
+  g.fillText(`${detection.summary.total_lesions} ${COPY.detectResult.countUnit} · ${COPY.appName}`, font, H + footer / 2);
+  download(c.toDataURL('image/png'), 'acnevision-deteksi.png');
 }
 
 export async function downloadPdf(src: string, analysis: AnalyzeResponse) {

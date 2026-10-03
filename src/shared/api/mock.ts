@@ -8,7 +8,7 @@ import {
 import { COPY } from '../constants/copy';
 import type {
   AcneClass, AdminUser, AnalysisSummary, AnalyzeResponse, AuditLogItem, ChatMessage, ConversationItem,
-  Lesion, Me, ModelStats, Paginated, ScanDetail, ScanListItem, UsageStats, UserRole, UserStatus,
+  DetectedLesion, DetectResponse, Lesion, Me, ModelStats, Paginated, ScanDetail, ScanListItem, UsageStats, UserRole, UserStatus,
 } from '../types/api';
 import { ApiRequestError, type AcneApi, type DateRange } from './types';
 
@@ -110,6 +110,38 @@ function fakeAnalysis(file: File, w: number, h: number, isGuest: boolean): Analy
     timing_ms: { detection: 150 + Math.floor(rand() * 80), classification: 200 + Math.floor(rand() * 100), total: 400 + Math.floor(rand() * 200) },
     model_versions: { detection: 'mock-1.0.0', classification: 'mock-1.0.0' },
     disclaimer: COPY.disclaimer,
+  };
+}
+
+/** Guest path: boxes and counts only. Deliberately builds no class, probability, or Grad-CAM data. */
+function fakeDetection(file: File, w: number, h: number, isGuest: boolean): DetectResponse {
+  const rand = rng(file.size + w * 31 + h);
+  const total = Math.floor(rand() * 16);
+  const lesions: DetectedLesion[] = [];
+  // Simulated face area: an ellipse in the middle of the frame (not the whole image).
+  const FACE = { cx: 0.5, cy: 0.5, rx: 0.2, ry: 0.27 };
+  // Boxes are square in pixels, so convert the half-size into per-axis normalized units.
+  const short = Math.min(w, h);
+  for (let i = 0; i < total; i++) {
+    const angle = rand() * Math.PI * 2, radius = Math.sqrt(rand());
+    const cx = FACE.cx + Math.cos(angle) * radius * FACE.rx, cy = FACE.cy + Math.sin(angle) * radius * FACE.ry;
+    const half = 0.018 + rand() * 0.022;
+    const hx = (half * short) / w, hy = (half * short) / h;
+    lesions.push({
+      idx: i,
+      bbox: { x1: cx - hx, y1: cy - hy, x2: cx + hx, y2: cy + hy },
+      det_confidence: 0.6 + rand() * 0.39,
+      label: COPY.detect.lesionLabel,
+    });
+  }
+  return {
+    detection_id: uid(), is_guest: isGuest, image: { width: w, height: h }, lesions,
+    summary: { total_lesions: total, severity: computeSeverity(total, false), severity_is_estimate: true },
+    timing_ms: { detection: 150 + Math.floor(rand() * 80) },
+    model_version: 'mock-1.0.0',
+    disclaimer: COPY.disclaimer,
+    advice: COPY.detect.advice,
+    upgrade: { message: COPY.detect.upgradeMessage, unlocks: [...COPY.detect.upgradeUnlocks] },
   };
 }
 
@@ -246,6 +278,13 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
   }
 
   const api: AcneApi = {
+    async detect(image) {
+      if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(image.type)) throw new ApiRequestError('INVALID_IMAGE', 'File harus berupa gambar JPEG, PNG, atau WEBP.', 400);
+      if (image.size > MAX_UPLOAD_BYTES) throw new ApiRequestError('FILE_TOO_LARGE', 'Ukuran file maksimal 10 MB.', 413);
+      const [img] = await Promise.all([readImage(image), sleep(900)]);
+      // Guest photos are not stored: nothing is kept in `analyses` or localStorage.
+      return fakeDetection(image, img.w, img.h, !session());
+    },
     async analyze(image) {
       if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(image.type)) throw new ApiRequestError('INVALID_IMAGE', 'File harus berupa gambar JPEG, PNG, atau WEBP.', 400);
       if (image.size > MAX_UPLOAD_BYTES) throw new ApiRequestError('FILE_TOO_LARGE', 'Ukuran file maksimal 10 MB.', 413);
