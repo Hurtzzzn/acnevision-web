@@ -91,7 +91,7 @@ export const COPY = {
   },
   scan: {
     eyebrow: 'Deteksi Jerawat',
-    title: 'Ambil Foto Wajah Anda',
+    title: 'Ambil Foto Wajahmu',
     subtitle: 'Posisikan wajah di dalam panduan, lalu ambil foto atau unggah dari galeri.',
     tabsLabel: 'Sumber foto',
     tabCamera: 'Kamera',
@@ -113,12 +113,10 @@ export const COPY = {
     progress: ['Mengirim foto', 'Mendeteksi jerawat', 'Menyiapkan hasil'],
   },
   detectResult: {
-    eyebrow: 'Hasil Deteksi',
-    title: 'Hasil analisis foto Anda',
-    subtitle: 'Hasil analisis AI berikut menunjukkan lokasi dan jumlah jerawat pada foto.',
+    title: 'Hasil analisis fotomu',
     imageAlt: 'Foto wajah dengan kotak penanda pada jerawat yang terdeteksi',
-    countUnit: 'Jerawat Terdeteksi',
-    severityTitle: 'Perkiraan Keparahan',
+    countUnit: 'jerawat terdeteksi',
+    severityTitle: 'Perkiraan keparahan',
     lesionUnit: 'lesi',
     adviceTitle: 'Anjuran Umum',
     tips: [

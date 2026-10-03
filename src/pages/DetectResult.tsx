@@ -60,27 +60,25 @@ export default function DetectResult() {
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-2xl">
-          <span className="badge bg-primary-50 text-primary-700">{R.eyebrow}</span>
-          <h1 className="mt-3">{R.title}</h1>
-          <p className="mt-1">{R.subtitle}</p>
-        </div>
+        <h1 className="text-headline-lg md:text-headline-lg">{R.title}</h1>
         <Link to="/scan" className="btn-outline"><ArrowLeft className="h-4 w-4" aria-hidden /> {R.another}</Link>
       </header>
 
       {/* Compact summary for small screens, so the result is not pushed below the photo */}
       {hasLesions && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-card border border-border bg-tint px-4 py-3 lg:hidden">
-          <p className="tnum text-headline-lg text-primary-600">{total_lesions}</p>
-          <p className="text-headline-sm text-ink-900">{R.countUnit}</p>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-card border border-border bg-tint px-4 py-3 lg:hidden">
+          <h2 className="text-headline-lg">
+            <span className="tnum text-primary-600">{total_lesions}</span> {R.countUnit}
+          </h2>
           <SeverityBadge severity={severity} isEstimate={false} />
         </div>
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        <div className="card space-y-4">
+        {/* Photo runs edge to edge inside the card: padded toolbar above, padded list below */}
+        <div className="card overflow-hidden !p-0">
           {hasLesions && (
-            <div className="flex flex-wrap items-center justify-between gap-2" role="toolbar" aria-label={R.toolbarLabel}>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-6" role="toolbar" aria-label={R.toolbarLabel}>
               <ToolButton label={R.boxesLabel} pressed={showBoxes} onClick={() => setShowBoxes((v) => !v)}>
                 {showBoxes ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
                 {R.boxesLabel}
@@ -113,8 +111,8 @@ export default function DetectResult() {
 
           {hasLesions && (
             <>
-              <p className="text-body-sm text-ink-500">{R.legend}</p>
-              <div className="border-t border-border pt-4">
+              <p className="px-4 pt-3 text-body-sm text-ink-500 md:px-6">{R.legend}</p>
+              <div className="mx-4 mt-4 border-t border-border pb-4 pt-4 md:mx-6 md:pb-6">
                 <div className="mb-2 flex items-baseline justify-between gap-3">
                   <h3 className="text-headline-sm">{R.listTitle}</h3>
                   <span className="text-body-sm text-ink-500">{R.confidenceLabel}</span>
@@ -134,14 +132,15 @@ export default function DetectResult() {
         <div className="space-y-6">
           {hasLesions ? (
             <div className="card space-y-5">
-              <div className="hidden lg:block">
-                <p className="tnum text-display text-primary-600">{total_lesions}</p>
-                <p className="text-headline-sm text-ink-900">{R.countUnit}</p>
-              </div>
-              <div className="space-y-4">
-                <h3 className="text-headline-sm">{R.severityTitle}</h3>
-                <SeverityBadge severity={severity} isEstimate={severity_is_estimate} />
-                <SeverityScale severity={severity} total={total_lesions} />
+              <h2 className="hidden text-display-sm lg:block">
+                <span className="tnum text-primary-600">{total_lesions}</span> {R.countUnit}
+              </h2>
+              <div className="space-y-3">
+                <p className="text-label-md text-ink-600">{R.severityTitle}</p>
+                <SeverityBadge severity={severity} isEstimate={severity_is_estimate} large />
+                <div className="pt-2">
+                  <SeverityScale severity={severity} total={total_lesions} />
+                </div>
               </div>
             </div>
           ) : (
@@ -153,7 +152,7 @@ export default function DetectResult() {
           )}
 
           <div className="card space-y-4">
-            <h3>{R.adviceTitle}</h3>
+            <h3 className="text-headline-sm">{R.adviceTitle}</h3>
             <ul className="space-y-3">
               {R.tips.map((tip, i) => {
                 const Icon = TIP_ICONS[i];

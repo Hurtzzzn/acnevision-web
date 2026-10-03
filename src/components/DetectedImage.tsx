@@ -79,7 +79,7 @@ export function DetectedImage({
 
   return (
     <div
-      className="overflow-auto rounded-card bg-tint"
+      className="overflow-auto bg-tint"
       style={zoom > 1 ? { maxHeight: '75vh' } : undefined}
       tabIndex={zoom > 1 ? 0 : undefined}
       aria-label={zoom > 1 ? alt : undefined}
