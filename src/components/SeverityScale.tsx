@@ -39,8 +39,12 @@ export function SeverityScale({ severity, total }: { severity: Severity; total: 
         {ORDER.map((s, i) => (
           <span
             key={s}
-            className="h-2.5 flex-1 first:rounded-l-full last:rounded-r-full"
-            style={{ background: i === active ? SEVERITY_META[s].text : SEVERITY_META[s].bg }}
+            className="h-2.5 flex-1 border first:rounded-l-full last:rounded-r-full"
+            // Inactive segments keep a thin border in their own hue so the pale fill stays visible on white
+            style={{
+              background: i === active ? SEVERITY_META[s].text : SEVERITY_META[s].bg,
+              borderColor: i === active ? SEVERITY_META[s].text : `${SEVERITY_META[s].text}59`,
+            }}
           />
         ))}
       </div>

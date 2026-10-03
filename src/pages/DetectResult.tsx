@@ -49,6 +49,23 @@ export default function DetectResult() {
   const hasLesions = total_lesions > 0;
   const toggleSelect = (idx: number) => setSelected((cur) => (cur === idx ? null : idx));
 
+  // For moderate or severe estimates the doctor note leads, right under the summary. Tone stays calm either way.
+  const doctorFirst = severity === 'moderate' || severity === 'severe';
+  const doctorNote = (
+    <section className="card flex gap-3" aria-labelledby="doctor-title">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-primary-50 text-primary-600" aria-hidden>
+        <Stethoscope className="h-4 w-4" />
+      </span>
+      <div>
+        <h3 id="doctor-title" className="text-headline-sm">{R.doctorTitle}</h3>
+        <p className="mt-1 text-body-md">
+          {doctorFirst && <>{R.doctorLead} </>}
+          {detection.advice}
+        </p>
+      </div>
+    </section>
+  );
+
   async function download() {
     try {
       await downloadDetectionPng(imageUrl!, detection!);
@@ -59,9 +76,13 @@ export default function DetectResult() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <h1 className="text-headline-lg md:text-headline-lg">{R.title}</h1>
-        <Link to="/scan" className="btn-outline"><ArrowLeft className="h-4 w-4" aria-hidden /> {R.another}</Link>
+      <header className="flex items-center justify-between gap-4">
+        <h1 className="text-headline-md sm:text-headline-lg">{R.title}</h1>
+        <Link to="/scan" className="btn-outline shrink-0">
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          <span className="sm:hidden">{R.anotherShort}</span>
+          <span className="hidden sm:inline">{R.another}</span>
+        </Link>
       </header>
 
       {/* Compact summary for small screens, so the result is not pushed below the photo */}
@@ -105,6 +126,7 @@ export default function DetectResult() {
             showBoxes={showBoxes}
             zoom={zoom}
             activeIdx={activeIdx}
+            selectedIdx={selected}
             onHover={setHovered}
             onSelect={toggleSelect}
           />
@@ -115,7 +137,7 @@ export default function DetectResult() {
               <div className="mx-4 mt-4 border-t border-border pb-4 pt-4 md:mx-6 md:pb-6">
                 <div className="mb-2 flex items-baseline justify-between gap-3">
                   <h3 className="text-headline-sm">{R.listTitle}</h3>
-                  <span className="text-body-sm text-ink-500">{R.confidenceLabel}</span>
+                  <span className="text-body-sm text-ink-500">{R.confidenceHint}</span>
                 </div>
                 <DetectionList
                   lesions={detection.lesions}
@@ -137,10 +159,11 @@ export default function DetectResult() {
               </h2>
               <div className="space-y-3">
                 <p className="text-label-md text-ink-600">{R.severityTitle}</p>
-                <SeverityBadge severity={severity} isEstimate={severity_is_estimate} large />
+                <SeverityBadge severity={severity} isEstimate={false} large />
                 <div className="pt-2">
                   <SeverityScale severity={severity} total={total_lesions} />
                 </div>
+                {severity_is_estimate && <p className="text-body-sm text-ink-500">{COPY.severityNote}</p>}
               </div>
             </div>
           ) : (
@@ -150,6 +173,8 @@ export default function DetectResult() {
               action={<Link to="/scan" className="btn-primary">{R.emptyAction}</Link>}
             />
           )}
+
+          {doctorFirst && doctorNote}
 
           <div className="card space-y-4">
             <h3 className="text-headline-sm">{R.adviceTitle}</h3>
@@ -166,14 +191,9 @@ export default function DetectResult() {
                 );
               })}
             </ul>
-            <div className="flex gap-3 rounded-btn bg-tint p-4">
-              <Stethoscope className="mt-0.5 h-5 w-5 shrink-0 text-primary-600" aria-hidden />
-              <div>
-                <p className="font-semibold text-ink-900">{R.doctorTitle}</p>
-                <p className="mt-1 text-body-md">{detection.advice}</p>
-              </div>
-            </div>
           </div>
+
+          {!doctorFirst && doctorNote}
 
           <Disclaimer variant="box" />
         </div>

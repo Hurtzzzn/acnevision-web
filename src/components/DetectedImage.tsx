@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { COPY, type DetectedLesion } from '@acnevision/shared';
 
 const CHIP = 24;
+/** Distance (px) from a chip's center to its box beyond which a leader line is always drawn. */
+const LEADER_GAP = 20;
 
 type Pos = { x: number; y: number };
 
@@ -51,16 +53,33 @@ interface DetectedImageProps {
   /** Image width multiplier; the frame scrolls when > 1. */
   zoom?: number;
   activeIdx?: number | null;
+  /** The lesion picked via click or the list; the zoomed frame scrolls to it. */
+  selectedIdx?: number | null;
   onHover?: (idx: number | null) => void;
   onSelect?: (idx: number) => void;
 }
 
-/** Guest result photo: neutral blue boxes with numbers 1..n, no class color or class name. */
+/**
+ * Guest result photo: neutral blue boxes with numbers 1..n, no class color or class name.
+ * Keyboard path is the lesion list; chips here are mouse/touch targets (tabIndex -1) that keep an aria-label.
+ */
 export function DetectedImage({
-  src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, onHover, onSelect,
+  src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, selectedIdx = null, onHover, onSelect,
 }: DetectedImageProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+
+  // When zoomed, bring the selected lesion to the middle of the scrollable frame (list selection is the keyboard path).
+  useEffect(() => {
+    const frame = frameRef.current;
+    const l = selectedIdx == null ? null : lesions.find((x) => x.idx === selectedIdx);
+    if (!frame || !l || zoom <= 1 || !size.w) return;
+    frame.scrollTo({
+      left: ((l.bbox.x1 + l.bbox.x2) / 2) * size.w - frame.clientWidth / 2,
+      top: ((l.bbox.y1 + l.bbox.y2) / 2) * size.h - frame.clientHeight / 2,
+    });
+  }, [selectedIdx, zoom, lesions, size.w, size.h]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -79,6 +98,7 @@ export function DetectedImage({
 
   return (
     <div
+      ref={frameRef}
       className="overflow-auto bg-tint"
       style={zoom > 1 ? { maxHeight: '75vh' } : undefined}
       tabIndex={zoom > 1 ? 0 : undefined}
@@ -103,6 +123,28 @@ export function DetectedImage({
             />
           );
         })}
+        {showBoxes && size.w > 0 && (
+          <svg width={size.w} height={size.h} className="pointer-events-none absolute left-0 top-0 z-10" aria-hidden>
+            {lesions.map((l) => {
+              const p = chips.get(l.idx);
+              if (!p) return null;
+              const bx = l.bbox.x1 * size.w, by = l.bbox.y1 * size.h;
+              const bw = (l.bbox.x2 - l.bbox.x1) * size.w, bh = (l.bbox.y2 - l.bbox.y1) * size.h;
+              const cx = p.x + CHIP / 2, cy = p.y + CHIP / 2;
+              const px = Math.max(bx, Math.min(bx + bw, cx)), py = Math.max(by, Math.min(by + bh, cy));
+              const gap = Math.hypot(cx - px, cy - py);
+              const active = activeIdx === l.idx;
+              // Chips hugging their box need no line; far chips always get one, and hover/focus reveals it.
+              if (gap <= CHIP / 2 + 1 || (gap <= LEADER_GAP && !active)) return null;
+              return (
+                <line
+                  key={l.idx} x1={cx} y1={cy} x2={px} y2={py}
+                  stroke="#2563EB" strokeWidth={active ? 1.5 : 1} strokeOpacity={active ? 1 : 0.55}
+                />
+              );
+            })}
+          </svg>
+        )}
         {showBoxes && lesions.map((l) => {
           const p = chips.get(l.idx);
           if (!p) return null;
@@ -113,10 +155,9 @@ export function DetectedImage({
               type="button"
               aria-label={`${COPY.detectResult.lesionName} ${l.idx + 1}`}
               aria-pressed={active}
+              tabIndex={-1}
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
-              onFocus={() => onHover?.(l.idx)}
-              onBlur={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
               className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] font-semibold leading-none shadow-card transition-colors ${active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
               style={{ left: p.x, top: p.y, width: CHIP, height: CHIP }}
@@ -154,7 +195,7 @@ export function DetectionList({
   }, [selectedIdx]);
 
   return (
-    <ul ref={listRef} className="relative grid max-h-72 gap-1 overflow-y-auto sm:grid-cols-2">
+    <ul ref={listRef} className="relative grid grid-cols-2 gap-1 sm:grid-cols-4 lg:max-h-72 lg:overflow-y-auto">
       {lesions.map((l) => {
         const active = activeIdx === l.idx;
         return (
@@ -162,6 +203,7 @@ export function DetectionList({
             <button
               type="button"
               aria-pressed={selectedIdx === l.idx}
+              aria-label={`${COPY.detectResult.lesionName} ${l.idx + 1}, ${COPY.detectResult.confidenceLabel} ${Math.round(l.det_confidence * 100)}%`}
               onMouseEnter={() => onHover(l.idx)}
               onMouseLeave={() => onHover(null)}
               onFocus={() => onHover(l.idx)}
@@ -172,8 +214,7 @@ export function DetectionList({
               <span className={`tnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${active ? 'bg-primary-600 text-white' : 'bg-primary-100 text-primary-800'}`}>
                 {l.idx + 1}
               </span>
-              <span className="text-ink-900">{COPY.detectResult.lesionName}</span>
-              <span className="tnum ml-auto text-ink-600">{Math.round(l.det_confidence * 100)}%</span>
+              <span className="tnum text-ink-900">{Math.round(l.det_confidence * 100)}%</span>
             </button>
           </li>
         );
