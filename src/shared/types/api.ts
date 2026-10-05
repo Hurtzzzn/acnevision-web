@@ -113,6 +113,23 @@ export interface ScanDetail extends AnalyzeResponse {
   conversation_id: string | null;
 }
 
+export interface UserStats {
+  totals: {
+    analyses: number;
+    total_lesions: number;
+    most_detected_class: AcneClass | null;
+    avg_confidence: number | null;
+  };
+  recent: Array<{
+    scan_id: string;
+    created_at: string;
+    thumbnail_url: string;
+    total_lesions: number;
+    classes_present: AcneClass[];
+    severity: Severity;
+  }>;
+}
+
 export interface TrendPoint { created_at: string; total_lesions: number; severity: Severity }
 
 export interface ConversationItem {

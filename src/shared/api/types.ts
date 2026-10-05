@@ -1,7 +1,7 @@
 import type {
   AdminUser, AnalyzeOptions, AnalyzeResponse, AuditLogItem, ConversationItem, ConversationMessages,
   DetectOptions, DetectResponse, Granularity, Me, ModelStats, Paginated, RecommendationResponse, ScanDetail, ScanListItem,
-  SendMessageResponse, TrendPoint, UsageStats, UserRole, UserStatus,
+  SendMessageResponse, TrendPoint, UsageStats, UserRole, UserStats, UserStatus,
 } from '../types/api';
 
 export interface DateRange { from: string; to: string; granularity: Granularity }
@@ -28,6 +28,7 @@ export interface AcneApi {
 
   getMe(): Promise<Me>;
   updateMe(patch: { full_name: string }): Promise<Me>;
+  getMyStats(): Promise<UserStats>;
 
   adminUsage(range: DateRange): Promise<UsageStats>;
   adminModel(range: DateRange): Promise<ModelStats>;

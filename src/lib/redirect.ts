@@ -1,8 +1,8 @@
-/** Where a user lands after signing in when no destination was carried over. No dashboard page exists yet. */
-export const DEFAULT_AFTER_LOGIN = '/';
+/** Where a user lands after signing in when no destination was carried over. */
+export const DEFAULT_AFTER_LOGIN = '/dashboard';
 
-/** "Analisis Baru" for logged-in users. The navbar points it at /scan until a dedicated /analyze page exists. */
-export const NEW_ANALYSIS_PATH = '/scan';
+/** "Analisis Baru" for logged-in users (full analysis). Guests use /scan, which is detection only. */
+export const NEW_ANALYSIS_PATH = '/analyze';
 
 const AUTH_PATHS = ['/login', '/register', '/reset-password'];
 const BASE = 'http://acnevision.local';

@@ -11,6 +11,7 @@ import type {
   DetectedLesion, DetectResponse, Lesion, Me, ModelStats, Paginated, ScanDetail, ScanListItem, UsageStats, UserRole, UserStatus,
 } from '../types/api';
 import { ApiRequestError, type AcneApi, type DateRange } from './types';
+import { buildUserStats } from './stats';
 
 interface StoredUser extends Me { password: string; last_seen_at: string | null }
 interface StoredScan { detail: ScanDetail; thumb: string; user_id: string }
@@ -326,6 +327,13 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const s = scans().find((x) => x.detail.scan_id === id && x.user_id === user.id);
       if (!s) throw new ApiRequestError('NOT_FOUND', 'Scan tidak ditemukan.', 404);
       return s.detail;
+    },
+    async getMyStats() {
+      const user = requireUser();
+      const mine = scans().filter((s) => s.user_id === user.id);
+      return buildUserStats(mine.map((s) => ({
+        scan_id: s.detail.scan_id, created_at: s.detail.created_at, thumbnail_url: s.thumb, summary: s.detail.summary,
+      })));
     },
     async deleteScan(id) {
       const user = requireUser();

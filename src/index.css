@@ -60,3 +60,12 @@
   /* Soft medical disclaimer: light blue, 4px accent strip */
   .disclaimer { @apply rounded-btn border border-primary-200 border-l-4 border-l-primary-600 bg-primary-50 px-[18px] py-3.5 text-body-md text-primary-800; }
 }
+
+/* Soft scanning line over the photo while an analysis runs; hidden for reduced motion. */
+@keyframes scan-sweep { from { top: 4%; } to { top: 96%; } }
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.7), transparent);
+  animation: scan-sweep 2.4s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) { .scan-line { display: none; } }

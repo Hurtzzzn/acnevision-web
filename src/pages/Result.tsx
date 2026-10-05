@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { Check, Download, History, Save } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
+import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { downloadPdf, downloadPng } from '../lib/export';
 import { useAuth } from '../store/auth';
 import { useScan } from '../store/scan';
@@ -13,6 +14,7 @@ import { ResultView } from '../components/ResultView';
 import { Disclaimer } from '../components/ui';
 
 export default function Result() {
+  const { analysisId } = useParams();
   const { analysis, imageUrl, recommendation, savedScanId, setRecommendation, setSaved } = useScan();
   const user = useAuth((s) => s.user);
   const { openLoginPrompt, toast } = useUi();
@@ -31,7 +33,8 @@ export default function Result() {
       .finally(() => setRecLoading(false));
   }, [analysis, recommendation, setRecommendation, toast]);
 
-  if (!analysis || !imageUrl) return <Navigate to="/scan" replace />;
+  // The result lives in memory only: after a refresh, or for a different id, send the user to start a new analysis.
+  if (!analysis || !imageUrl || analysis.analysis_id !== analysisId) return <Navigate to={NEW_ANALYSIS_PATH} replace />;
 
   async function save() {
     if (!user) {

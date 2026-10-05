@@ -74,6 +74,7 @@ export function createApiClient({ baseURL, getToken }: ApiClientOptions): AcneAp
 
     getMe: () => call(() => http.get('/me')),
     updateMe: (patch) => call(() => http.patch('/me', patch)),
+    getMyStats: () => call(() => http.get('/me/stats')),
 
     adminUsage: (r) => call(() => http.get('/admin/stats/usage', { params: r })),
     adminModel: (r) => call(() => http.get('/admin/stats/model', { params: r })),

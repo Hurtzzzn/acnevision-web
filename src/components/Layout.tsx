@@ -4,6 +4,7 @@ import { ChevronDown, Info, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
 import { USE_MOCK } from '../lib/runtime';
+import { DEFAULT_AFTER_LOGIN, NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { LoginPromptModal } from './LoginPromptModal';
 import { Logo, Toasts } from './ui';
 
@@ -16,9 +17,9 @@ const GUEST_LINKS: NavItem[] = [
   { to: '/about', label: COPY.nav.about },
 ];
 
-// No user dashboard route exists yet; add `Dashboard` here when the page is built.
 const USER_LINKS: NavItem[] = [
-  { to: '/scan', label: COPY.nav.newAnalysis },
+  { to: DEFAULT_AFTER_LOGIN, label: COPY.nav.dashboard },
+  { to: NEW_ANALYSIS_PATH, label: COPY.nav.newAnalysis },
   { to: '/history', label: COPY.nav.history },
   { to: '/chat', label: COPY.nav.consultation },
 ];
