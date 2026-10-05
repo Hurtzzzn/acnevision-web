@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Check, Lock } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
+import { authPath, NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { LockedPreview } from './LockedPreview';
 
 const words = (s: string) => s.toLowerCase().match(/\p{L}+/gu) ?? [];
@@ -15,7 +16,7 @@ function repeatsTitle(message: string, title: string): boolean {
  * Locked-feature card for guests: explains what opens after login. Calm light-blue card, never an overlay.
  * Text, buttons, and the unlock list on the left; a static locked preview on the right from `lg` (hidden below).
  */
-export function UpgradeCard({ message, unlocks }: { message?: string; unlocks: readonly string[] }) {
+export function UpgradeCard({ message, unlocks, redirectTo = NEW_ANALYSIS_PATH }: { message?: string; unlocks: readonly string[]; redirectTo?: string }) {
   const lead = message && !repeatsTitle(message, COPY.upgrade.title) ? message : COPY.upgrade.lead;
   return (
     <section
@@ -34,8 +35,8 @@ export function UpgradeCard({ message, unlocks }: { message?: string; unlocks: r
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Link to="/login" className="btn-primary px-6 py-3">{COPY.upgrade.login}</Link>
-          <Link to="/register" className="btn-outline px-6 py-3">{COPY.upgrade.register}</Link>
+          <Link to={authPath('/login', redirectTo)} className="btn-primary px-6 py-3">{COPY.upgrade.login}</Link>
+          <Link to={authPath('/register', redirectTo)} className="btn-outline px-6 py-3">{COPY.upgrade.register}</Link>
         </div>
 
         <ul className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
