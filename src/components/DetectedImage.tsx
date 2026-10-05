@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CircleDashed } from 'lucide-react';
 import { COPY, type DetectedLesion } from '@acnevision/shared';
+import { isLowConfidence, sortByConfidence } from '../lib/detection';
 
 const CHIP = 24;
 /** Distance (px) from a chip's center to its box beyond which a leader line is always drawn. */
@@ -55,6 +57,8 @@ interface DetectedImageProps {
   activeIdx?: number | null;
   /** The lesion picked via click or the list; the zoomed frame scrolls to it. */
   selectedIdx?: number | null;
+  /** Normalized point to center in the zoomed frame; a new `key` re-triggers the scroll. */
+  focus?: { cx: number; cy: number; key: number } | null;
   onHover?: (idx: number | null) => void;
   onSelect?: (idx: number) => void;
 }
@@ -64,7 +68,7 @@ interface DetectedImageProps {
  * Keyboard path is the lesion list; chips here are mouse/touch targets (tabIndex -1) that keep an aria-label.
  */
 export function DetectedImage({
-  src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, selectedIdx = null, onHover, onSelect,
+  src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, selectedIdx = null, focus = null, onHover, onSelect,
 }: DetectedImageProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -80,6 +84,16 @@ export function DetectedImage({
       top: ((l.bbox.y1 + l.bbox.y2) / 2) * size.h - frame.clientHeight / 2,
     });
   }, [selectedIdx, zoom, lesions, size.w, size.h]);
+
+  // Declared after the selection effect so an explicit "focus on lesions" wins when both apply.
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || !focus || zoom <= 1 || !size.w) return;
+    frame.scrollTo({
+      left: focus.cx * size.w - frame.clientWidth / 2,
+      top: focus.cy * size.h - frame.clientHeight / 2,
+    });
+  }, [focus, zoom, size.w, size.h]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -139,7 +153,7 @@ export function DetectedImage({
               return (
                 <line
                   key={l.idx} x1={cx} y1={cy} x2={px} y2={py}
-                  stroke="#2563EB" strokeWidth={active ? 1.5 : 1} strokeOpacity={active ? 1 : 0.55}
+                  stroke="#2563EB" strokeWidth={active ? 1.75 : 1.25} strokeOpacity={active ? 1 : 0.8}
                 />
               );
             })}
@@ -194,27 +208,43 @@ export function DetectionList({
     }
   }, [selectedIdx]);
 
+  const R = COPY.detectResult;
+  // Highest confidence first; each row keeps the number printed on its box in the photo.
+  const rows = useMemo(() => sortByConfidence(lesions), [lesions]);
+
   return (
-    <ul ref={listRef} className="relative grid grid-cols-2 gap-1 sm:grid-cols-4 lg:max-h-72 lg:overflow-y-auto">
-      {lesions.map((l) => {
+    <ul ref={listRef} className="relative grid gap-x-2 gap-y-0.5 sm:grid-cols-2 lg:max-h-96 lg:grid-cols-3 lg:overflow-y-auto">
+      {rows.map((l) => {
         const active = activeIdx === l.idx;
+        const pct = Math.round(l.det_confidence * 100);
+        const low = isLowConfidence(l);
         return (
           <li key={l.idx} data-idx={l.idx}>
             <button
               type="button"
               aria-pressed={selectedIdx === l.idx}
-              aria-label={`${COPY.detectResult.lesionName} ${l.idx + 1}, ${COPY.detectResult.confidenceLabel} ${Math.round(l.det_confidence * 100)}%`}
+              aria-label={`${R.lesionName} ${l.idx + 1}, ${R.confidenceLabel} ${pct}%${low ? `, ${R.lowConfidence}` : ''}`}
               onMouseEnter={() => onHover(l.idx)}
               onMouseLeave={() => onHover(null)}
               onFocus={() => onHover(l.idx)}
               onBlur={() => onHover(null)}
               onClick={() => onSelect(l.idx)}
-              className={`flex w-full items-center gap-3 rounded-control px-2 py-2 text-left text-body-md transition-colors ${active ? 'bg-primary-50' : 'hover:bg-tint'}`}
+              className={`flex w-full items-center gap-2.5 rounded-control px-2 py-1.5 text-left text-body-md transition-colors ${active ? 'bg-primary-50' : 'hover:bg-tint'}`}
             >
               <span className={`tnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${active ? 'bg-primary-600 text-white' : 'bg-primary-100 text-primary-800'}`}>
                 {l.idx + 1}
               </span>
-              <span className="tnum text-ink-900">{Math.round(l.det_confidence * 100)}%</span>
+              <span className="min-w-0 flex-1">
+                <span className="block h-1 overflow-hidden rounded-full bg-primary-100" aria-hidden>
+                  <span className={`block h-full rounded-full ${low ? 'bg-primary-300' : 'bg-primary-600'}`} style={{ width: `${pct}%` }} />
+                </span>
+                {low && (
+                  <span className="mt-1 flex items-center gap-1 text-body-sm text-ink-500">
+                    <CircleDashed className="h-3 w-3 shrink-0" aria-hidden /> {R.lowConfidence}
+                  </span>
+                )}
+              </span>
+              <span className="tnum w-10 shrink-0 text-right text-ink-900">{pct}%</span>
             </button>
           </li>
         );

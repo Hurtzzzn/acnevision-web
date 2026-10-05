@@ -24,7 +24,7 @@ const USER_LINKS: NavItem[] = [
 ];
 
 const desktopLink = ({ isActive }: { isActive: boolean }) =>
-  `rounded-btn px-3 py-2 text-label-md transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-600 hover:bg-tint hover:text-ink-900'}`;
+  `whitespace-nowrap rounded-btn px-3 py-2 text-label-md transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-600 hover:bg-tint hover:text-ink-900'}`;
 
 const drawerLink = ({ isActive }: { isActive: boolean }) =>
   `rounded-btn px-3 py-3 text-body-lg font-medium ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-700 hover:bg-tint'}`;
@@ -60,13 +60,13 @@ export function Navbar() {
       <div className="mx-auto flex h-16 max-w-container items-center justify-between gap-4 px-gutter-sm md:px-margin-md xl:px-margin">
         <Link to="/" aria-label={COPY.nav.homeLabel} className="shrink-0 rounded-btn"><Logo /></Link>
 
-        <nav className="hidden items-center gap-1 md:flex" aria-label={COPY.nav.main}>
+        <nav className="hidden items-center gap-1 lg:flex" aria-label={COPY.nav.main}>
           {links.map((l) => (
             <NavLink key={l.to + l.label} to={l.to} end={l.end} className={desktopLink}>{l.label}</NavLink>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           {user ? (
             <div className="relative" ref={menuRef}>
               <button
@@ -101,7 +101,7 @@ export function Navbar() {
         </div>
 
         <button
-          className="rounded-btn p-2 text-ink-900 transition-colors hover:bg-tint md:hidden"
+          className="rounded-btn p-2 text-ink-900 transition-colors hover:bg-tint lg:hidden"
           aria-label={COPY.nav.openMenu}
           aria-expanded={open}
           aria-controls="mobile-drawer"
@@ -112,7 +112,7 @@ export function Navbar() {
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-ink-900/40" onClick={() => setOpen(false)} aria-hidden />
           <aside
             id="mobile-drawer"

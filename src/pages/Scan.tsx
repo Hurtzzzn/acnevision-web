@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Camera, Check, ImageUp, Lock, ScanFace } from 'lucide-react';
+import { Camera, Check, ImageUp, Info, Lock, ScanFace } from 'lucide-react';
 import { ALLOWED_IMAGE_TYPES, COPY, MAX_UPLOAD_BYTES } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
@@ -52,6 +52,13 @@ export default function Scan() {
   const user = useAuth((s) => s.user);
   const { setScan, setDetection } = useScan();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set when /detect-result had nothing to show (e.g. after a refresh); read once, then cleared from history state.
+  const [resultExpired] = useState(() => !!(location.state as { resultExpired?: boolean } | null)?.resultExpired);
+
+  useEffect(() => {
+    if (resultExpired) navigate(location.pathname, { replace: true, state: null });
+  }, [resultExpired, navigate, location.pathname]);
 
   useEffect(() => {
     if (!busy) return;
@@ -114,6 +121,13 @@ export default function Scan() {
         <h1 className="mt-3">{COPY.scan.title}</h1>
         <p className="mt-1">{COPY.scan.subtitle}</p>
       </header>
+
+      {resultExpired && (
+        <p role="status" className="flex items-start gap-2.5 rounded-btn border border-primary-200 bg-primary-50 px-4 py-3 text-body-md text-primary-800">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" aria-hidden />
+          {COPY.scan.resultExpired}
+        </p>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="card relative lg:col-span-2">

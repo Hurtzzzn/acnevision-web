@@ -130,7 +130,8 @@ function fakeDetection(file: File, w: number, h: number, isGuest: boolean): Dete
     lesions.push({
       idx: i,
       bbox: { x1: cx - hx, y1: cy - hy, x2: cx + hx, y2: cy + hy },
-      det_confidence: 0.6 + rand() * 0.39,
+      // 0.45-0.99, so some simulated lesions fall below LOW_CONFIDENCE_THRESHOLD and the "kurang yakin" state is exercised
+      det_confidence: 0.45 + rand() * 0.54,
       label: COPY.detect.lesionLabel,
     });
   }
