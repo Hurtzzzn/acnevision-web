@@ -94,7 +94,7 @@ export function ChatPanel({ conversationId, canFollowUp, loading = false }: { co
             <p className="text-body-md text-ink-600">{COPY.chat.subtitle}</p>
           </div>
         </div>
-        {ready && <Link to="/chat" className="rounded text-label-md text-primary-600 hover:underline">{COPY.chat.openChat}</Link>}
+        {ready && <Link to="/chat" className="-my-2 rounded py-2 text-label-md text-primary-600 hover:underline">{COPY.chat.openChat}</Link>}
       </div>
 
       {showControls ? (
@@ -102,7 +102,7 @@ export function ChatPanel({ conversationId, canFollowUp, loading = false }: { co
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="text-body-sm text-ink-500">{COPY.chat.quickLabel}</span>
             {COPY.chat.quick.map((q) => (
-              <button key={q} type="button" className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-label-md text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPending(q)} disabled={!ready}>
+              <button key={q} type="button" className="rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-label-md text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPending(q)} disabled={!ready}>
                 {q}
               </button>
             ))}

@@ -1,6 +1,6 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Focus, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronDown, Focus, ZoomIn, ZoomOut } from 'lucide-react';
 import { CLASS_META, COPY, type AnalyzeResponse, type Lesion } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, pct } from '../lib/errors';
@@ -27,9 +27,9 @@ const lesionLabel = (l: Lesion) =>
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="inset-panel p-3">
-      <dt className="text-body-sm text-ink-600">{label}</dt>
-      <dd className="tnum mt-1 text-headline-sm text-ink-900">{value}</dd>
+    <div className="flex flex-col gap-1 px-3 py-3 lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:px-6">
+      <dt className="text-body-sm text-ink-600 lg:text-body-md">{label}</dt>
+      <dd className="tnum text-label-lg text-ink-900">{value}</dd>
     </div>
   );
 }
@@ -44,6 +44,7 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
   const [focus, setFocus] = useState<{ cx: number; cy: number; key: number } | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   const [camLoading, setCamLoading] = useState(false);
   const [cams, setCams] = useState<Record<number, string>>({});
 
@@ -99,72 +100,95 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
     );
   }
 
-  const summaryProps = { total: summary.total_lesions, severity: summary.severity, isEstimate: summary.severity_is_estimate };
+  const summaryProps = { total: summary.total_lesions, severity: summary.severity, isEstimate: summary.severity_is_estimate, compact: true };
 
   return (
     <div className="space-y-6">
       {/* Below lg the result statement leads, so count and severity are not pushed under the photo */}
       <SeveritySummary {...summaryProps} className="lg:hidden" />
 
-      <div className="grid items-start gap-6 lg:grid-cols-12">
-        <div className="card overflow-hidden !p-0 lg:sticky lg:top-20 lg:col-span-7">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-6">
-            <div role="tablist" aria-label={R.tabsLabel} onKeyDown={onTabKey} className="inline-flex rounded-control bg-tint p-1">
-              {TABS.map((t) => (
+      <div className="grid items-start gap-6 lg:grid-cols-12 xl:grid-cols-[minmax(0,1fr)_20rem]">
+        {/* Photo leads: 8 of 12 columns on desktop, all but a 20rem side column from xl, edge to edge on phones. The lesion list sits right under it. */}
+        <div className="space-y-6 lg:col-span-8 xl:col-span-1">
+          <div className="card overflow-hidden !p-0 max-md:-mx-gutter-sm max-md:rounded-none max-md:border-x-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-6">
+              <div role="tablist" aria-label={R.tabsLabel} onKeyDown={onTabKey} className="inline-flex rounded-control bg-tint p-1">
+                {TABS.map((t) => (
+                  <button
+                    key={t.id} id={`${uid}-${t.id}`} type="button" role="tab"
+                    aria-selected={tab === t.id} aria-controls={`${uid}-panel`} tabIndex={tab === t.id ? 0 : -1}
+                    onClick={() => chooseTab(t.id)}
+                    className={`rounded-control px-3 py-2.5 text-label-md transition-colors md:py-1.5 ${tab === t.id ? 'bg-white text-primary-700 shadow-card' : 'text-ink-600 hover:text-ink-900'}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2" role="toolbar" aria-label={COPY.detectResult.toolbarLabel}>
+                <ToolButton label={COPY.detectResult.focus} disabled={!fit || (fit.zoomIdx === 0 && zoomIdx === 0)} onClick={focusLesions}>
+                  <Focus className="h-4 w-4" aria-hidden /> {COPY.detectResult.focusShort}
+                </ToolButton>
+                <ToolButton label={COPY.detectResult.zoomOut} disabled={zoomIdx === 0} onClick={() => stepZoom(-1)}>
+                  <ZoomOut className="h-4 w-4" aria-hidden />
+                </ToolButton>
+                <span className="tnum w-11 text-center text-label-md text-ink-600" aria-live="polite">{Math.round(zoom * 100)}%</span>
+                <ToolButton label={COPY.detectResult.zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} onClick={() => stepZoom(1)}>
+                  <ZoomIn className="h-4 w-4" aria-hidden />
+                </ToolButton>
+              </div>
+            </div>
+
+            <div id={`${uid}-panel`} role="tabpanel" aria-labelledby={`${uid}-${tab}`}>
+              <DetectedImage
+                src={imageUrl}
+                lesions={lesions}
+                alt={R.imageAlt}
+                aspect={analysis.image.width / analysis.image.height}
+                showBoxes={tab !== 'original'}
+                heatmaps={tab === 'gradcam' ? cams : undefined}
+                zoom={zoom}
+                activeIdx={activeIdx}
+                selectedIdx={selected}
+                focus={focus}
+                onHover={setHovered}
+                onSelect={toggleSelect}
+                getColor={lesionColor}
+                isLow={lesionLow}
+                getLabel={lesionLabel}
+              />
+            </div>
+
+            <div className="px-4 py-3 text-body-sm text-ink-500 md:px-6">
+              {tab === 'gradcam' ? (
+                camLoading ? <Spinner label={R.gradcamLoading} /> : <p>{R.gradcamNote}</p>
+              ) : tab === 'boxes' ? (
+                <p>{R.legend}</p>
+              ) : null}
+            </div>
+          </div>
+
+            <section className="card" aria-labelledby={`${uid}-list`}>
+              {/* Below lg the list is folded (the numbered boxes on the photo already carry it); from lg it is always open */}
+              <h2 id={`${uid}-list`} className="text-headline-sm">
                 <button
-                  key={t.id} id={`${uid}-${t.id}`} type="button" role="tab"
-                  aria-selected={tab === t.id} aria-controls={`${uid}-panel`} tabIndex={tab === t.id ? 0 : -1}
-                  onClick={() => chooseTab(t.id)}
-                  className={`rounded-control px-3 py-1.5 text-label-md transition-colors ${tab === t.id ? 'bg-white text-primary-700 shadow-card' : 'text-ink-600 hover:text-ink-900'}`}
+                  type="button" aria-expanded={listOpen} aria-controls={`${uid}-list-body`}
+                  onClick={() => setListOpen((o) => !o)}
+                  className="-my-2 flex w-full items-center justify-between gap-2 rounded-control py-2 text-left lg:hidden"
                 >
-                  {t.label}
+                  {R.listTitle} ({lesions.length})
+                  <ChevronDown className={`h-5 w-5 shrink-0 text-ink-500 transition-transform ${listOpen ? 'rotate-180' : ''}`} aria-hidden />
                 </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2" role="toolbar" aria-label={COPY.detectResult.toolbarLabel}>
-              <ToolButton label={COPY.detectResult.focus} disabled={!fit || (fit.zoomIdx === 0 && zoomIdx === 0)} onClick={focusLesions}>
-                <Focus className="h-4 w-4" aria-hidden /> {COPY.detectResult.focusShort}
-              </ToolButton>
-              <ToolButton label={COPY.detectResult.zoomOut} disabled={zoomIdx === 0} onClick={() => stepZoom(-1)}>
-                <ZoomOut className="h-4 w-4" aria-hidden />
-              </ToolButton>
-              <span className="tnum w-11 text-center text-label-md text-ink-600" aria-live="polite">{Math.round(zoom * 100)}%</span>
-              <ToolButton label={COPY.detectResult.zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} onClick={() => stepZoom(1)}>
-                <ZoomIn className="h-4 w-4" aria-hidden />
-              </ToolButton>
-            </div>
-          </div>
-
-          <div id={`${uid}-panel`} role="tabpanel" aria-labelledby={`${uid}-${tab}`}>
-            <DetectedImage
-              src={imageUrl}
-              lesions={lesions}
-              alt={R.imageAlt}
-              aspect={analysis.image.width / analysis.image.height}
-              showBoxes={tab !== 'original'}
-              heatmaps={tab === 'gradcam' ? cams : undefined}
-              zoom={zoom}
-              activeIdx={activeIdx}
-              selectedIdx={selected}
-              focus={focus}
-              onHover={setHovered}
-              onSelect={toggleSelect}
-              getColor={lesionColor}
-              isLow={lesionLow}
-              getLabel={lesionLabel}
-            />
-          </div>
-
-          <div className="px-4 py-3 text-body-sm text-ink-500 md:px-6">
-            {tab === 'gradcam' ? (
-              camLoading ? <Spinner label={R.gradcamLoading} /> : <p>{R.gradcamNote}</p>
-            ) : tab === 'boxes' ? (
-              <p>{R.legend}</p>
-            ) : null}
-          </div>
+                <span className="hidden lg:inline">{R.listTitle} ({lesions.length})</span>
+              </h2>
+              <div id={`${uid}-list-body`} className={listOpen ? 'mt-1' : 'hidden lg:mt-1 lg:block'}>
+                <p className="mb-2 text-body-sm text-ink-500">{R.listExplain}</p>
+                <ClassLesionList lesions={lesions} activeIdx={activeIdx} selectedIdx={selected} onHover={setHovered} onSelect={toggleSelect} />
+              </div>
+            </section>
         </div>
 
-        <div className="space-y-6 lg:col-span-5">
+        {/* The summary stays in view while the photo column scrolls, but only where the whole column fits the viewport height */}
+        <div className="space-y-6 lg:top-20 lg:col-span-4 xl:col-span-1 lg:self-start lg:[@media(min-height:860px)]:sticky">
           <SeveritySummary {...summaryProps} className="hidden lg:block" />
 
           <section className="card" aria-labelledby={`${uid}-dist`}>
@@ -172,17 +196,12 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
             <ClassDistribution classCounts={summary.class_counts} total={summary.total_lesions} />
           </section>
 
-          <dl className="grid gap-3 sm:grid-cols-3">
+          {/* One 3-column strip below lg; stacked rows in the narrow desktop column */}
+          <dl className="card grid grid-cols-3 divide-x divide-border !p-0 lg:grid-cols-1 lg:divide-x-0 lg:divide-y">
             <Stat label={R.statAvgConfidence} value={pct(summary.avg_confidence)} />
             <Stat label={R.statLowConfidence} value={String(summary.low_confidence_count)} />
             <Stat label={R.statTime} value={R.timeValue(analysis.timing_ms.total)} />
           </dl>
-
-          <section className="card" aria-labelledby={`${uid}-list`}>
-            <h2 id={`${uid}-list`} className="text-headline-sm">{R.listTitle} ({lesions.length})</h2>
-            <p className="mb-2 mt-1 text-body-sm text-ink-500">{R.listExplain}</p>
-            <ClassLesionList lesions={lesions} activeIdx={activeIdx} selectedIdx={selected} onHover={setHovered} onSelect={toggleSelect} />
-          </section>
         </div>
       </div>
 

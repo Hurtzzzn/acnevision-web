@@ -207,7 +207,18 @@ export interface MockAuth {
 }
 
 export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
-  const analyses = new Map<string, { result: AnalyzeResponse; image: string; thumb: string }>();
+  type PendingAnalysis = { result: AnalyzeResponse; image: string; thumb: string };
+  const analyses = new Map<string, PendingAnalysis>();
+  // A real backend keeps an analysis for a while, so saving still works after a refresh. The mock mirrors that for the last
+  // few analyses of signed-in users, in sessionStorage (tab lifetime). Guest analyses are never written.
+  const PENDING_KEY = 'acv.mock.pending';
+  const readPending = (): Array<PendingAnalysis & { id: string }> => {
+    try { return JSON.parse(sessionStorage.getItem(PENDING_KEY) ?? '[]'); } catch { return []; }
+  };
+  const rememberPending = (id: string, a: PendingAnalysis) => {
+    try { sessionStorage.setItem(PENDING_KEY, JSON.stringify([{ id, ...a }, ...readPending().filter((p) => p.id !== id)].slice(0, 3))); } catch { /* optional */ }
+  };
+  const findPending = (id: string): PendingAnalysis | undefined => analyses.get(id) ?? readPending().find((p) => p.id === id);
 
   const session = (): StoredUser | null => {
     const id = load<string | null>(K.session, null);
@@ -257,7 +268,10 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       save(K.session, u.id);
       return publicUser(u);
     },
-    logout() { localStorage.removeItem(K.session); },
+    logout() {
+      localStorage.removeItem(K.session);
+      try { sessionStorage.removeItem(PENDING_KEY); } catch { /* nothing to clear */ }
+    },
     current() { const u = session(); return u ? publicUser(u) : null; },
   };
 
@@ -294,6 +308,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const user = session();
       const result = fakeAnalysis(image, img.w, img.h, !user);
       analyses.set(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });
+      if (user) rememberPending(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });
       return result;
     },
     async getGradcam() {
@@ -309,7 +324,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
 
     async saveScan(analysisId) {
       const user = requireUser();
-      const a = analyses.get(analysisId);
+      const a = findPending(analysisId);
       if (!a) throw new ApiRequestError('NOT_FOUND', 'Analisis tidak ditemukan atau sudah kedaluwarsa.', 404);
       const all = scans();
       if (all.some((s) => s.detail.scan_id === analysisId)) throw new ApiRequestError('ALREADY_SAVED', 'Hasil sudah tersimpan.', 409);
@@ -350,7 +365,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
     async recommend(analysisId) {
       await sleep(600);
       const user = session();
-      const a = analyses.get(analysisId);
+      const a = findPending(analysisId);
       const saved = scans().find((s) => s.detail.scan_id === analysisId);
       const result = a?.result ?? saved?.detail;
       if (!result) throw new ApiRequestError('NOT_FOUND', 'Analisis tidak ditemukan atau sudah kedaluwarsa.', 404);

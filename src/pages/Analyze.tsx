@@ -4,6 +4,7 @@ import { Check, Crosshair, Layers, Lightbulb, MessageSquareText, RefreshCw, Scan
 import { COPY } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
+import { useAuth } from '../store/auth';
 import { useScan } from '../store/scan';
 import { Disclaimer } from '../components/ui';
 import { FrameAction, FrameStage, FrameTop, PhotoInput, StageAlert, type PhotoMethod } from '../components/PhotoInput';
@@ -13,10 +14,10 @@ const STEP_MS = 1500;
 const BENEFIT_ICONS = [Crosshair, Tags, Layers, MessageSquareText];
 const TIP_ICONS = [Sun, UserRound, Wand2];
 
-/** Steps taking turns over the bottom of the photo. Active state is shown by color and marker only (no weight change), so text never reflows. */
+/** Steps taking turns, under the photo. Active state is shown by color and marker only (no weight change), so text never reflows. */
 function Steps({ step }: { step: number }) {
   return (
-    <ol className="absolute inset-x-3 bottom-3 z-10 space-y-2 rounded-btn bg-white/90 p-3">
+    <ol className="flex h-full flex-col justify-center gap-2">
       {C.progress.map((label, i) => {
         const done = i < step;
         const active = i === step;
@@ -45,6 +46,8 @@ export default function Analyze() {
   const runId = useRef(0);
   const navigate = useNavigate();
   const setScan = useScan((s) => s.setScan);
+  const remember = useScan((s) => s.remember);
+  const userId = useAuth((s) => s.user?.id);
 
   useEffect(() => {
     if (!photo) { setPreviewUrl(null); return; }
@@ -72,6 +75,8 @@ export default function Analyze() {
       const analysis = await api.analyze(photo.file, { source: 'web', input_method: photo.method, include_gradcam: false });
       if (id !== runId.current) return; // cancelled
       setScan(analysis, URL.createObjectURL(photo.file));
+      // Signed-in only (this page sits behind RequireAuth): lets the result survive a refresh in this tab.
+      if (userId) void remember(userId, photo.file);
       navigate(`/analysis/${analysis.analysis_id}`);
     } catch (e) {
       if (id !== runId.current) return;
@@ -98,13 +103,16 @@ export default function Analyze() {
         <div className="card">
           {busy && previewUrl ? (
             <>
-              <FrameTop><p className="text-label-md text-ink-900" role="status">{C.processingLabel}</p></FrameTop>
+              <FrameTop>
+                <p className="text-label-md text-ink-900" role="status">{C.processingLabel}</p>
+                <button className="btn-outline px-3 py-1.5" onClick={cancel}>{C.cancel}</button>
+              </FrameTop>
               <FrameStage>
                 <img src={previewUrl} alt={C.processingAlt} className="absolute inset-0 h-full w-full object-cover opacity-90" />
                 <div className="scan-line" aria-hidden />
-                <Steps step={step} />
               </FrameStage>
-              <FrameAction />
+              {/* Takes the height of the two action rows below the photo in the other states (44 + 16 + 44), so the card never resizes */}
+              <div className="mt-4 h-[6.5rem]"><Steps step={step} /></div>
             </>
           ) : photo && previewUrl ? (
             <>
@@ -130,15 +138,13 @@ export default function Analyze() {
             <PhotoInput onPick={(file, method) => { setError(null); setPhoto({ file, method }); }} defaultMode="upload" labels={{ upload: C.tabUpload, camera: C.tabCamera }} />
           )}
 
-          <div className="mt-4 h-11">
-            {busy ? (
-              <button className="btn-outline h-full w-full" onClick={cancel}>{C.cancel}</button>
-            ) : (
+          {!busy && (
+            <div className="mt-4 h-11">
               <button className="btn-primary h-full w-full" onClick={start} disabled={!photo}>
                 <Sparkles className="h-4 w-4" aria-hidden /> {C.start}
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">

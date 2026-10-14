@@ -12,6 +12,11 @@ export function sortByClassConfidence<T extends { idx: number; class_confidence:
   return [...lesions].sort((a, b) => b.class_confidence - a.class_confidence || a.idx - b.idx);
 }
 
+/** Lesion list order: photo numbers by default, or most confident first. Never renumbers: `idx` stays the number on the box. */
+export function orderLesions<T extends { idx: number; class_confidence: number }>(lesions: readonly T[], byConfidence: boolean): T[] {
+  return byConfidence ? sortByClassConfidence(lesions) : [...lesions].sort((a, b) => a.idx - b.idx);
+}
+
 /** Real numbers for the one-line list summary. `avgPct` is null when there are no lesions. */
 export function summarizeConfidence(lesions: DetectedLesion[]): { count: number; avgPct: number | null; lowCount: number } {
   const count = lesions.length;

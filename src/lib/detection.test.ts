@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DetectedLesion } from '@acnevision/shared';
-import { isLowConfidence, sortByClassConfidence, sortByConfidence, summarizeConfidence } from './detection';
+import { isLowConfidence, orderLesions, sortByClassConfidence, sortByConfidence, summarizeConfidence } from './detection';
 
 const lesion = (idx: number, det_confidence: number): DetectedLesion => ({
   idx, det_confidence, label: 'Jerawat', bbox: { x1: 0.1, y1: 0.1, x2: 0.2, y2: 0.2 },
@@ -43,5 +43,23 @@ describe('sortByClassConfidence', () => {
     const input = [l(0, 0.6), l(1, 0.9)];
     sortByClassConfidence(input);
     expect(input.map((x) => x.idx)).toEqual([0, 1]);
+  });
+});
+
+describe('orderLesions', () => {
+  const l = (idx: number, class_confidence: number) => ({ idx, class_confidence });
+  const input = [l(2, 0.7), l(0, 0.5), l(3, 0.95), l(1, 0.7)];
+
+  it('defaults to the numbers printed on the boxes (1, 2, 3, 4)', () => {
+    expect(orderLesions(input, false).map((x) => x.idx)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('can put the most confident first, ties by number', () => {
+    expect(orderLesions(input, true).map((x) => x.idx)).toEqual([3, 1, 2, 0]);
+  });
+
+  it('does not mutate the input', () => {
+    orderLesions(input, false);
+    expect(input.map((x) => x.idx)).toEqual([2, 0, 3, 1]);
   });
 });

@@ -6,8 +6,8 @@ const { mild, moderate } = SEVERITY_THRESHOLDS;
 /** Lesion-count range shown under each segment, derived from SEVERITY_THRESHOLDS. */
 const RANGE: Record<Severity, string> = {
   clear: '0',
-  mild: `1–${mild}`,
-  moderate: `${mild + 1}–${moderate}`,
+  mild: `1-${mild}`,
+  moderate: `${mild + 1}-${moderate}`,
   severe: `>${moderate}`,
 };
 

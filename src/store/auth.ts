@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ApiRequestError, type Me } from '@acnevision/shared';
 import { api, mock, supabase } from '../lib/runtime';
+import { useScan } from './scan';
 
 interface AuthState {
   user: Me | null;
@@ -30,6 +31,7 @@ export const useAuth = create<AuthState>((set) => ({
         const { data } = await supabase.auth.getSession();
         set({ user: data.session ? await api.getMe() : null });
         supabase.auth.onAuthStateChange(async (_e, session) => {
+          if (!session) useScan.getState().reset();
           set({ user: session ? await api.getMe().catch(() => null) : null });
         });
       }
@@ -85,6 +87,8 @@ export const useAuth = create<AuthState>((set) => ({
   async logout() {
     if (mock) mock.auth.logout();
     else await supabase?.auth.signOut();
+    // The analysis and its photo belong to the signed-in user: drop them (memory and sessionStorage) on logout.
+    useScan.getState().reset();
     set({ user: null });
   },
 

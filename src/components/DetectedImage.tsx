@@ -179,12 +179,14 @@ export function DetectedImage<T extends BoxLesion>({
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
-              className={`absolute cursor-pointer rounded-[3px] transition-colors ${active ? 'z-20 border-[3px]' : 'border-[1.5px]'}`}
+              className={`absolute cursor-pointer rounded-[3px] transition-colors ${active ? 'z-20 border-[3px]' : classy ? 'border-2' : 'border-[1.5px]'}`}
               style={{
                 left: `${l.bbox.x1 * 100}%`, top: `${l.bbox.y1 * 100}%`,
                 width: `${(l.bbox.x2 - l.bbox.x1) * 100}%`, height: `${(l.bbox.y2 - l.bbox.y1) * 100}%`,
                 borderColor: color, borderStyle: isLow?.(l) ? 'dashed' : 'solid',
                 background: active ? `${color}33` : undefined,
+                // Class-colored boxes get a white inner and a dark outer hairline so they stay visible on skin, hair, and clothing alike.
+                boxShadow: classy ? '0 0 0 1px rgba(255,255,255,0.95), 0 0 0 2px rgba(15,23,42,0.4)' : undefined,
               }}
             >
               {heatmaps?.[l.idx] && (
@@ -230,7 +232,7 @@ export function DetectedImage<T extends BoxLesion>({
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
-              className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] font-semibold leading-none shadow-card transition-colors ${classy ? (active ? '' : 'frosted border-2 text-ink-900') : active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
+              className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] after:absolute after:-inset-1.5 after:content-[''] font-semibold leading-none shadow-card transition-colors ${classy ? (active ? '' : 'frosted border-2 text-ink-900') : active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
               style={{
                 left: p.x, top: p.y, width: CHIP, height: CHIP,
                 ...(color && { borderColor: color, ...(active && { background: color, color: textOn(color) }) }),
