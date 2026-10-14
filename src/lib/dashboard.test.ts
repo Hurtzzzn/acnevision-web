@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildUserStats, type Severity, type StatsSource, type UserStats } from '@acnevision/shared';
-import { chronological, firstName, formatDelta, greetingKey, lesionTrend } from './dashboard';
+import {
+  chronological, confidencePercent, daysSince, firstName, formatDelta, greetingKey, lesionTrend, nudgeKind,
+} from './dashboard';
 
 type Recent = UserStats['recent'][number];
 
@@ -103,5 +105,27 @@ describe('dashboard helpers', () => {
     expect(firstName('Gena Darma', 'g@x.id')).toBe('Gena');
     expect(firstName(null, 'gena.darma@x.id')).toBe('gena.darma');
     expect(firstName('  ', 'budi@x.id')).toBe('budi');
+  });
+});
+
+describe('follow-up helpers', () => {
+  it('counts whole days since an analysis and never goes negative', () => {
+    const now = new Date('2026-10-15T12:00:00Z');
+    expect(daysSince('2026-10-15T08:00:00Z', now)).toBe(0);
+    expect(daysSince('2026-10-08T11:00:00Z', now)).toBe(7);
+    expect(daysSince('2026-10-20T00:00:00Z', now)).toBe(0);
+  });
+
+  it('chooses the nudge by days since the last analysis', () => {
+    expect(nudgeKind(0)).toBe('fresh');
+    expect(nudgeKind(2)).toBe('fresh');
+    expect(nudgeKind(3)).toBe('soon');
+    expect(nudgeKind(7)).toBe('due');
+    expect(nudgeKind(14)).toBe('long');
+  });
+
+  it('rounds confidence to a whole percent within 0-100', () => {
+    expect(confidencePercent(0.8449)).toBe(84);
+    expect(confidencePercent(1.2)).toBe(100);
   });
 });

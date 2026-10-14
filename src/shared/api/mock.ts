@@ -12,6 +12,7 @@ import type {
 } from '../types/api';
 import { ApiRequestError, type AcneApi, type DateRange } from './types';
 import { buildUserStats } from './stats';
+import { buildDemoScans } from './demoHistory';
 
 interface StoredUser extends Me { password: string; last_seen_at: string | null }
 interface StoredScan { detail: ScanDetail; thumb: string; user_id: string }
@@ -19,7 +20,8 @@ interface StoredConversation {
   id: string; user_id: string; scan_id: string | null; title: string; updated_at: string; messages: ChatMessage[];
 }
 
-const K = { users: 'acv.mock.users', scans: 'acv.mock.scans', convs: 'acv.mock.convs', audit: 'acv.mock.audit', session: 'acv.mock.session' };
+const K = { users: 'acv.mock.users', scans: 'acv.mock.scans', convs: 'acv.mock.convs', audit: 'acv.mock.audit', session: 'acv.mock.session', demoSeeded: 'acv.mock.demoSeeded' };
+const DEMO_USER_ID = 'u-demo';
 
 function load<T>(key: string, fallback: T): T {
   try {
@@ -230,6 +232,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
     const u = session();
     if (!u) throw new ApiRequestError('UNAUTHORIZED', 'Silakan masuk terlebih dahulu.', 401);
     if (u.status === 'suspended') throw new ApiRequestError('FORBIDDEN', 'Akun kamu dinonaktifkan.', 403);
+    seedDemoHistory(u);
     return u;
   };
   const requireAdmin = () => {
@@ -238,6 +241,14 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
     return u;
   };
   const scans = () => load<StoredScan[]>(K.scans, []);
+  /** Sample history for the demo account only, once, and only when it has no saved scans yet. Real accounts are never touched. */
+  const seedDemoHistory = (u: StoredUser) => {
+    if (u.id !== DEMO_USER_ID || load<boolean>(K.demoSeeded, false)) return;
+    save(K.demoSeeded, true);
+    const all = scans();
+    if (all.some((s) => s.user_id === u.id)) return;
+    save(K.scans, [...buildDemoScans().reverse().map((d) => ({ ...d, user_id: u.id })), ...all]);
+  };
   const convs = () => load<StoredConversation[]>(K.convs, []);
   const paginate = <T,>(items: T[], page: number, size: number): Paginated<T> =>
     ({ items: items.slice((page - 1) * size, page * size), page, page_size: size, total: items.length });

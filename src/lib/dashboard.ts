@@ -48,3 +48,25 @@ export function formatDelta(delta: number): string | null {
   if (delta === 0) return null;
   return `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`;
 }
+
+const DAY_MS = 86_400_000;
+
+/** Whole calendar-agnostic days between an ISO timestamp and `now`; never negative. */
+export function daysSince(iso: string, now: Date = new Date()): number {
+  const diff = now.getTime() - new Date(iso).getTime();
+  return Number.isFinite(diff) ? Math.max(0, Math.floor(diff / DAY_MS)) : 0;
+}
+
+export type NudgeKind = 'fresh' | 'soon' | 'due' | 'long';
+
+/** Picks the follow-up suggestion by time since the last analysis. */
+export function nudgeKind(days: number): NudgeKind {
+  if (days <= 2) return 'fresh';
+  if (days <= 6) return 'soon';
+  if (days <= 13) return 'due';
+  return 'long';
+}
+
+export function confidencePercent(confidence: number): number {
+  return Math.round(Math.min(1, Math.max(0, confidence)) * 100);
+}

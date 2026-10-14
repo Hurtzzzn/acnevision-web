@@ -122,3 +122,10 @@
   animation: scan-sweep 2.4s ease-in-out infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) { .scan-line { display: none; } }
+
+/* Dashboard. Cards rise a few pixels with a short stagger (--d); chart dots pop in one by one after the line is drawn.
+   Opacity/transform only; reduced motion collapses the durations through the global rule above. */
+@keyframes rise-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes dot-in { from { opacity: 0; transform: scale(0.6); } }
+.enter-rise { animation: rise-in 320ms var(--ease-out) both; animation-delay: var(--d, 0ms); }
+.chart-dot { transform-box: fill-box; transform-origin: center; animation: dot-in 240ms var(--ease-out) both; animation-delay: var(--d, 0ms); }
