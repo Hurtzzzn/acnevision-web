@@ -1,98 +1,192 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { COPY, type AnalyzeResponse } from '@acnevision/shared';
+import { Focus, ZoomIn, ZoomOut } from 'lucide-react';
+import { CLASS_META, COPY, type AnalyzeResponse, type Lesion } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, pct } from '../lib/errors';
+import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { useUi } from '../store/ui';
-import { AnnotatedImage, ClassDistributionBars, EmptyState, LesionList, SeverityBadge, Spinner } from './ui';
+import { ClassDistribution, ClassLesionList } from './ClassParts';
+import { DetectedImage } from './DetectedImage';
+import { fitLesions, ToolButton, ZOOM_STEPS } from './PhotoTools';
+import { SeveritySummary } from './SeveritySummary';
+import { EmptyState, Spinner } from './ui';
 
-/** Three-column result layout shared by /result and /history/:scanId (docs/06 section 4.4). */
+const R = COPY.result;
+type Tab = 'original' | 'boxes' | 'gradcam';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'original', label: R.tabOriginal },
+  { id: 'boxes', label: R.tabBoxes },
+  { id: 'gradcam', label: R.tabGradcam },
+];
+
+const lesionColor = (l: Lesion) => CLASS_META[l.predicted_class].color;
+const lesionLow = (l: Lesion) => l.is_low_confidence;
+const lesionLabel = (l: Lesion) =>
+  `${R.lesionName} ${l.idx + 1}, ${CLASS_META[l.predicted_class].label}, ${R.confidenceWord} ${Math.round(l.class_confidence * 100)}%`;
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="inset-panel p-3">
+      <dt className="text-body-sm text-ink-600">{label}</dt>
+      <dd className="tnum mt-1 text-headline-sm text-ink-900">{value}</dd>
+    </div>
+  );
+}
+
+/** Full-analysis layout shared by /analysis/:id and /history/:scanId (docs/06 section 4.4b). `bottom` renders full width below. */
 export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeResponse; imageUrl: string; bottom?: ReactNode }) {
   const { summary, lesions } = analysis;
+  const toast = useUi((s) => s.toast);
+  const uid = useId();
+  const [tab, setTab] = useState<Tab>('boxes');
+  const [zoomIdx, setZoomIdx] = useState(0);
+  const [focus, setFocus] = useState<{ cx: number; cy: number; key: number } | null>(null);
+  const [hovered, setHovered] = useState<number | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
-  const [showCam, setShowCam] = useState(false);
   const [camLoading, setCamLoading] = useState(false);
   const [cams, setCams] = useState<Record<number, string>>({});
-  const [listOpen, setListOpen] = useState(true);
-  const toast = useUi((s) => s.toast);
 
-  async function toggleCam(on: boolean) {
-    setShowCam(on);
-    if (!on || Object.keys(cams).length || !lesions.length) return;
+  const zoom = ZOOM_STEPS[zoomIdx];
+  const activeIdx = hovered ?? selected;
+  const fit = lesions.length ? fitLesions(lesions) : null;
+
+  async function chooseTab(next: Tab) {
+    setTab(next);
+    if (next !== 'gradcam' || Object.keys(cams).length || !lesions.length) return;
     setCamLoading(true);
     try {
       const entries = await Promise.all(lesions.map(async (l) => [l.idx, await api.getGradcam(analysis.analysis_id, l.idx)] as const));
       setCams(Object.fromEntries(entries));
     } catch (e) {
-      setShowCam(false);
-      toast(errMessage(e, 'Grad-CAM tidak tersedia (mungkin sudah kedaluwarsa).'), 'error');
+      setTab('boxes');
+      toast(errMessage(e, R.gradcamFailed), 'error');
     } finally {
       setCamLoading(false);
     }
   }
 
+  function onTabKey(e: KeyboardEvent) {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const i = TABS.findIndex((t) => t.id === tab);
+    const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length].id;
+    chooseTab(next);
+    document.getElementById(`${uid}-${next}`)?.focus();
+  }
+
+  const toggleSelect = (idx: number) => { setFocus(null); setSelected((cur) => (cur === idx ? null : idx)); };
+  const stepZoom = (delta: number) => { setFocus(null); setZoomIdx((i) => i + delta); };
+  const focusLesions = () => {
+    if (!fit) return;
+    setZoomIdx(fit.zoomIdx);
+    setFocus({ cx: fit.cx, cy: fit.cy, key: Date.now() });
+  };
+
   if (summary.total_lesions === 0) {
     return (
       <div className="space-y-6">
-        <div className="mx-auto max-w-md"><AnnotatedImage src={imageUrl} lesions={[]} /></div>
+        <div className="card mx-auto max-w-md overflow-hidden !p-0">
+          <DetectedImage src={imageUrl} lesions={[]} alt={R.imageAlt} aspect={analysis.image.width / analysis.image.height} />
+        </div>
         <EmptyState
-          title="Tidak ada jerawat terdeteksi"
+          title={R.emptyTitle}
           text={COPY.noLesion}
-          action={<Link to="/scan" className="btn-primary">Coba Lagi</Link>}
+          action={<Link to={NEW_ANALYSIS_PATH} className="btn-primary">{R.emptyAction}</Link>}
         />
         {bottom}
       </div>
     );
   }
 
+  const summaryProps = { total: summary.total_lesions, severity: summary.severity, isEstimate: summary.severity_is_estimate };
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="card space-y-3">
-          <AnnotatedImage src={imageUrl} lesions={lesions} showGradcam={showCam} gradcam={cams} selectedIdx={selected} onSelectLesion={setSelected} />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={showCam} onChange={(e) => toggleCam(e.target.checked)} />
-            Tampilkan Grad-CAM {camLoading && <Spinner />}
-          </label>
-          <p className="text-xs text-ink-400">Kotak putus-putus: AI kurang yakin dengan lesi tersebut.</p>
+      {/* Below lg the result statement leads, so count and severity are not pushed under the photo */}
+      <SeveritySummary {...summaryProps} className="lg:hidden" />
+
+      <div className="grid items-start gap-6 lg:grid-cols-12">
+        <div className="card overflow-hidden !p-0 lg:sticky lg:top-20 lg:col-span-7">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-6">
+            <div role="tablist" aria-label={R.tabsLabel} onKeyDown={onTabKey} className="inline-flex rounded-control bg-tint p-1">
+              {TABS.map((t) => (
+                <button
+                  key={t.id} id={`${uid}-${t.id}`} type="button" role="tab"
+                  aria-selected={tab === t.id} aria-controls={`${uid}-panel`} tabIndex={tab === t.id ? 0 : -1}
+                  onClick={() => chooseTab(t.id)}
+                  className={`rounded-control px-3 py-1.5 text-label-md transition-colors ${tab === t.id ? 'bg-white text-primary-700 shadow-card' : 'text-ink-600 hover:text-ink-900'}`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2" role="toolbar" aria-label={COPY.detectResult.toolbarLabel}>
+              <ToolButton label={COPY.detectResult.focus} disabled={!fit || (fit.zoomIdx === 0 && zoomIdx === 0)} onClick={focusLesions}>
+                <Focus className="h-4 w-4" aria-hidden /> {COPY.detectResult.focusShort}
+              </ToolButton>
+              <ToolButton label={COPY.detectResult.zoomOut} disabled={zoomIdx === 0} onClick={() => stepZoom(-1)}>
+                <ZoomOut className="h-4 w-4" aria-hidden />
+              </ToolButton>
+              <span className="tnum w-11 text-center text-label-md text-ink-600" aria-live="polite">{Math.round(zoom * 100)}%</span>
+              <ToolButton label={COPY.detectResult.zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} onClick={() => stepZoom(1)}>
+                <ZoomIn className="h-4 w-4" aria-hidden />
+              </ToolButton>
+            </div>
+          </div>
+
+          <div id={`${uid}-panel`} role="tabpanel" aria-labelledby={`${uid}-${tab}`}>
+            <DetectedImage
+              src={imageUrl}
+              lesions={lesions}
+              alt={R.imageAlt}
+              aspect={analysis.image.width / analysis.image.height}
+              showBoxes={tab !== 'original'}
+              heatmaps={tab === 'gradcam' ? cams : undefined}
+              zoom={zoom}
+              activeIdx={activeIdx}
+              selectedIdx={selected}
+              focus={focus}
+              onHover={setHovered}
+              onSelect={toggleSelect}
+              getColor={lesionColor}
+              isLow={lesionLow}
+              getLabel={lesionLabel}
+            />
+          </div>
+
+          <div className="px-4 py-3 text-body-sm text-ink-500 md:px-6">
+            {tab === 'gradcam' ? (
+              camLoading ? <Spinner label={R.gradcamLoading} /> : <p>{R.gradcamNote}</p>
+            ) : tab === 'boxes' ? (
+              <p>{R.legend}</p>
+            ) : null}
+          </div>
         </div>
 
-        <div className="card space-y-5">
-          <div>
-            <h3 className="mb-2">Hasil Klasifikasi</h3>
-            <SeverityBadge severity={summary.severity} isEstimate={summary.severity_is_estimate} large />
-          </div>
-          <ClassDistributionBars classCounts={summary.class_counts} />
-          <div>
-            <button className="flex w-full items-center justify-between text-sm font-semibold text-ink-900" onClick={() => setListOpen((o) => !o)} aria-expanded={listOpen}>
-              Daftar lesi ({lesions.length})
-              {listOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {listOpen && <div className="mt-2 max-h-64 overflow-y-auto"><LesionList lesions={lesions} selectedIdx={selected} onSelect={setSelected} /></div>}
-          </div>
-        </div>
+        <div className="space-y-6 lg:col-span-5">
+          <SeveritySummary {...summaryProps} className="hidden lg:block" />
 
-        <div className="card">
-          <h3 className="mb-4">Detection Summary</h3>
-          <dl className="space-y-4 text-sm">
-            <Stat label="Total lesi terdeteksi" value={String(summary.total_lesions)} />
-            <Stat label="Rata-rata confidence" value={pct(summary.avg_confidence, 1)} />
-            <Stat label="Lesi kurang yakin" value={String(summary.low_confidence_count)} />
-            <Stat label="Waktu analisis" value={`${(analysis.timing_ms.total / 1000).toFixed(2)} detik`} />
+          <section className="card" aria-labelledby={`${uid}-dist`}>
+            <h2 id={`${uid}-dist`} className="mb-4 text-headline-sm">{R.distributionTitle}</h2>
+            <ClassDistribution classCounts={summary.class_counts} total={summary.total_lesions} />
+          </section>
+
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <Stat label={R.statAvgConfidence} value={pct(summary.avg_confidence)} />
+            <Stat label={R.statLowConfidence} value={String(summary.low_confidence_count)} />
+            <Stat label={R.statTime} value={R.timeValue(analysis.timing_ms.total)} />
           </dl>
+
+          <section className="card" aria-labelledby={`${uid}-list`}>
+            <h2 id={`${uid}-list`} className="text-headline-sm">{R.listTitle} ({lesions.length})</h2>
+            <p className="mb-2 mt-1 text-body-sm text-ink-500">{R.listExplain}</p>
+            <ClassLesionList lesions={lesions} activeIdx={activeIdx} selectedIdx={selected} onHover={setHovered} onSelect={toggleSelect} />
+          </section>
         </div>
       </div>
-      {bottom}
-    </div>
-  );
-}
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-btn bg-primary-50 p-3">
-      <dt className="text-xs text-ink-600">{label}</dt>
-      <dd className="text-2xl font-bold text-ink-900">{value}</dd>
+      {bottom}
     </div>
   );
 }

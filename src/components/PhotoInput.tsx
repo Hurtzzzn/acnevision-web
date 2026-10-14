@@ -1,11 +1,35 @@
-import { useId, useRef, useState, type DragEvent, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import Webcam from 'react-webcam';
 import { Camera, ImageUp } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { validatePhoto } from '../lib/photo';
-import { ErrorBox } from './ui';
 
 export type PhotoMethod = 'camera' | 'upload';
+
+/*
+ * Fixed-height skeleton shared by every photo state (camera, upload, preview, processing), so switching state never moves
+ * the content below: a top row, a 4:3 stage, and an action row. Messages and errors overlay the stage instead of adding rows.
+ */
+export function FrameTop({ children }: { children?: ReactNode }) {
+  return <div className="flex h-11 items-center justify-between gap-2">{children}</div>;
+}
+
+export function FrameStage({ children }: { children?: ReactNode }) {
+  return <div className="relative mt-3 aspect-[4/3] w-full overflow-hidden rounded-card bg-tint">{children}</div>;
+}
+
+export function FrameAction({ children }: { children?: ReactNode }) {
+  return <div className="mt-4 flex h-11 items-center justify-center">{children}</div>;
+}
+
+/** Message laid over the bottom of the stage; read out by screen readers as an alert. */
+export function StageAlert({ children }: { children: ReactNode }) {
+  return (
+    <div role="alert" className="absolute inset-x-3 bottom-3 z-20 flex items-center justify-between gap-3 rounded-btn border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {children}
+    </div>
+  );
+}
 
 interface PhotoInputProps {
   /** Called only with a file that passed validation. */
@@ -65,35 +89,35 @@ export function PhotoInput({ onPick, disabled = false, defaultMode = 'camera', l
 
   return (
     <div>
-      <div className="mb-4 flex gap-2" role="tablist" aria-label={COPY.scan.tabsLabel} onKeyDown={onTabKey}>
-        {order.map((m) => {
-          const selected = active === m;
-          const Icon = m === 'camera' ? Camera : ImageUp;
-          return (
-            <button
-              key={m} id={`${uid}-tab-${m}`} role="tab" aria-selected={selected} aria-controls={panelId} tabIndex={selected ? 0 : -1}
-              className={selected ? 'btn-primary' : 'btn-outline'}
-              onClick={() => setMode(m)}
-              disabled={disabled || (m === 'camera' && camError)}
-            >
-              <Icon className="h-4 w-4" aria-hidden /> {labels[m]}
-            </button>
-          );
-        })}
-      </div>
-
-      {camError && <div className="mb-4"><ErrorBox message={COPY.scan.cameraDenied} /></div>}
+      <FrameTop>
+        <div className="flex gap-2" role="tablist" aria-label={COPY.scan.tabsLabel} onKeyDown={onTabKey}>
+          {order.map((m) => {
+            const selected = active === m;
+            const Icon = m === 'camera' ? Camera : ImageUp;
+            return (
+              <button
+                key={m} id={`${uid}-tab-${m}`} role="tab" aria-selected={selected} aria-controls={panelId} tabIndex={selected ? 0 : -1}
+                className={selected ? 'btn-primary' : 'btn-outline'}
+                onClick={() => { setError(null); setMode(m); }}
+                disabled={disabled || (m === 'camera' && camError)}
+              >
+                <Icon className="h-4 w-4" aria-hidden /> {labels[m]}
+              </button>
+            );
+          })}
+        </div>
+      </FrameTop>
 
       <div id={panelId} role="tabpanel" aria-labelledby={`${uid}-tab-${active}`}>
-        {active === 'camera' ? (
-          <>
-            <div className="relative overflow-hidden rounded-card bg-tint">
+        <FrameStage>
+          {active === 'camera' ? (
+            <>
               <Webcam
                 ref={cam} audio={false} mirrored screenshotFormat="image/jpeg" screenshotQuality={0.92}
                 videoConstraints={{ facingMode: 'user', width: 1280, height: 960 }}
                 onUserMedia={() => setCamReady(true)}
                 onUserMediaError={() => setCamError(true)}
-                className="block aspect-[4/3] w-full object-cover"
+                className="absolute inset-0 block h-full w-full object-cover"
               />
               {!camReady && (
                 <p className="absolute inset-0 flex items-center justify-center text-body-md text-ink-500" role="status">{COPY.scan.cameraLoading}</p>
@@ -105,31 +129,37 @@ export function PhotoInput({ onPick, disabled = false, defaultMode = 'camera', l
               <span className="frosted absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-label-sm text-ink-900">
                 {COPY.scan.guideHint}
               </span>
+            </>
+          ) : (
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={onDrop}
+              className={`absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-card border-2 border-dashed p-4 text-center ${drag ? 'border-primary-600 bg-primary-50' : 'border-border-strong'}`}
+            >
+              <ImageUp className="h-10 w-10 text-primary-600" aria-hidden />
+              <p className="text-sm">{COPY.scan.uploadTitle}</p>
+              <button className="btn-primary" onClick={() => fileInput.current?.click()} disabled={disabled}>{COPY.scan.uploadPick}</button>
+              <input
+                ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" hidden
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f, 'upload'); e.target.value = ''; }}
+              />
             </div>
-            <button className="btn-primary mt-4 w-full py-3" onClick={capture} disabled={!camReady || disabled}>
+          )}
+          {camError && !error && <StageAlert>{COPY.scan.cameraDenied}</StageAlert>}
+          {error && <StageAlert>{error}</StageAlert>}
+        </FrameStage>
+
+        <FrameAction>
+          {active === 'camera' ? (
+            <button className="btn-primary h-full w-full" onClick={capture} disabled={!camReady || disabled}>
               <Camera className="h-4 w-4" aria-hidden /> {COPY.scan.capture}
             </button>
-          </>
-        ) : (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragLeave={() => setDrag(false)}
-            onDrop={onDrop}
-            className={`flex aspect-[4/3] flex-col items-center justify-center gap-3 rounded-card border-2 border-dashed p-4 text-center ${drag ? 'border-primary-600 bg-primary-50' : 'border-border-strong bg-tint'}`}
-          >
-            <ImageUp className="h-10 w-10 text-primary-600" aria-hidden />
-            <p className="text-sm">{COPY.scan.uploadTitle}</p>
-            <button className="btn-primary" onClick={() => fileInput.current?.click()} disabled={disabled}>{COPY.scan.uploadPick}</button>
+          ) : (
             <p className="text-body-sm text-ink-500">{COPY.scan.uploadHint}</p>
-            <input
-              ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" hidden
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f, 'upload'); e.target.value = ''; }}
-            />
-          </div>
-        )}
+          )}
+        </FrameAction>
       </div>
-
-      {error && <div className="mt-4"><ErrorBox message={error} /></div>}
     </div>
   );
 }

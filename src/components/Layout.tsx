@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Info, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
@@ -205,7 +205,8 @@ export function Footer() {
 
 export function Layout() {
   const { pathname } = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  // Layout effect, not a passive one: the new page must never be painted at the old page's scroll offset (the photo would jump).
+  useLayoutEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />

@@ -16,6 +16,8 @@
     --shadow-float: 0 12px 32px -4px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
   }
 
+  /* Reserve the scrollbar's width so it appearing (e.g. when content grows) never shifts the page sideways. */
+  html { scrollbar-gutter: stable; }
   body { @apply bg-canvas font-sans text-body-md text-ink-600 antialiased; }
   h1, h2, h3, h4 { @apply text-ink-900; }
   h1 { @apply text-headline-xl-sm md:text-headline-xl; }
@@ -61,11 +63,12 @@
   .disclaimer { @apply rounded-btn border border-primary-200 border-l-4 border-l-primary-600 bg-primary-50 px-[18px] py-3.5 text-body-md text-primary-800; }
 }
 
-/* Soft scanning line over the photo while an analysis runs; hidden for reduced motion. */
-@keyframes scan-sweep { from { top: 4%; } to { top: 96%; } }
+/* Soft scanning line over the photo while an analysis runs. The element fills its container and only its top 2px is
+   painted, so translateY (compositor only, no layout) can sweep it from top to bottom. Hidden for reduced motion. */
+@keyframes scan-sweep { from { transform: translateY(4%); } to { transform: translateY(94%); } }
 .scan-line {
-  position: absolute; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.7), transparent);
+  position: absolute; inset: 0; pointer-events: none; will-change: transform;
+  background: linear-gradient(90deg, transparent, rgb(37 99 235 / 0.7), transparent) top / 100% 2px no-repeat;
   animation: scan-sweep 2.4s ease-in-out infinite alternate;
 }
 @media (prefers-reduced-motion: reduce) { .scan-line { display: none; } }

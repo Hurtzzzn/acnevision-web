@@ -1,68 +1,19 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Download, Droplets, Eye, EyeOff, Focus, Hand, Stethoscope, Sun, ZoomIn, ZoomOut, type LucideIcon } from 'lucide-react';
-import { COPY, type DetectedLesion, type Severity } from '@acnevision/shared';
+import { COPY } from '@acnevision/shared';
 import { downloadDetectionPng } from '../lib/export';
 import { summarizeConfidence } from '../lib/detection';
 import { errMessage } from '../lib/errors';
 import { useScan } from '../store/scan';
 import { useUi } from '../store/ui';
 import { DetectedImage, DetectionList } from '../components/DetectedImage';
-import { SeverityScale } from '../components/SeverityScale';
+import { fitLesions, ToolButton, ZOOM_STEPS } from '../components/PhotoTools';
+import { SeveritySummary } from '../components/SeveritySummary';
 import { UpgradeCard } from '../components/UpgradeCard';
-import { Disclaimer, EmptyState, SeverityBadge } from '../components/ui';
+import { Disclaimer, EmptyState } from '../components/ui';
 
-const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3];
 const TIP_ICONS: LucideIcon[] = [Droplets, Hand, Sun];
-
-/** Largest zoom step that still keeps every lesion (plus a margin for number chips) in view, and the cluster center. */
-function fitLesions(lesions: DetectedLesion[]) {
-  const x1 = Math.min(...lesions.map((l) => l.bbox.x1)), x2 = Math.max(...lesions.map((l) => l.bbox.x2));
-  const y1 = Math.min(...lesions.map((l) => l.bbox.y1)), y2 = Math.max(...lesions.map((l) => l.bbox.y2));
-  const fit = Math.min(1 / (x2 - x1 + 0.08), 1 / (y2 - y1 + 0.08));
-  const zoomIdx = ZOOM_STEPS.reduce((best, z, i) => (z <= fit ? i : best), 0);
-  return { zoomIdx, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
-}
-
-function ToolButton({ label, onClick, disabled, pressed, children }: {
-  label: string; onClick: () => void; disabled?: boolean; pressed?: boolean; children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      disabled={disabled}
-      onClick={onClick}
-      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-control border border-border bg-white px-2.5 text-label-md text-ink-900 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 aria-pressed:border-primary-200 aria-pressed:bg-primary-50"
-    >
-      {children}
-    </button>
-  );
-}
-
-/** Count sentence plus estimated severity (badge, scale, note). One card below `lg` at the top, one in the right column from `lg`. */
-function SummaryCard({ total, severity, isEstimate, className }: {
-  total: number; severity: Severity; isEstimate: boolean; className: string;
-}) {
-  const R = COPY.detectResult;
-  return (
-    <section className={`card space-y-5 ${className}`} aria-label={R.severityTitle}>
-      <h2 className="text-headline-lg lg:text-display-sm">
-        <span className="tnum text-primary-600">{total}</span> {R.countUnit}
-      </h2>
-      <div className="space-y-3">
-        <p className="text-label-md text-ink-600">{R.severityTitle}</p>
-        <SeverityBadge severity={severity} isEstimate={false} large />
-        <div className="pt-2">
-          <SeverityScale severity={severity} total={total} />
-        </div>
-        {isEstimate && <p className="text-body-sm text-ink-500">{COPY.severityNote}</p>}
-      </div>
-    </section>
-  );
-}
 
 /** Guest detection result (docs/06 section 4.4a). Receives DetectResponse only: no class names, Grad-CAM, or chat. */
 export default function DetectResult() {
@@ -165,7 +116,7 @@ export default function DetectResult() {
 
       {/* Below lg the full summary leads, so count and severity are not pushed under the photo and list */}
       {hasLesions && (
-        <SummaryCard total={total_lesions} severity={severity} isEstimate={severity_is_estimate} className="lg:hidden" />
+        <SeveritySummary total={total_lesions} severity={severity} isEstimate={severity_is_estimate} className="lg:hidden" />
       )}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
@@ -263,7 +214,7 @@ export default function DetectResult() {
 
         <div className="space-y-6">
           {hasLesions ? (
-            <SummaryCard total={total_lesions} severity={severity} isEstimate={severity_is_estimate} className="hidden lg:block" />
+            <SeveritySummary total={total_lesions} severity={severity} isEstimate={severity_is_estimate} className="hidden lg:block" />
           ) : (
             <EmptyState
               title={R.emptyTitle}

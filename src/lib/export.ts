@@ -27,7 +27,7 @@ export async function renderAnnotatedCanvas(src: string, analysis: AnalyzeRespon
     g.strokeStyle = color; g.lineWidth = 2;
     g.setLineDash(l.is_low_confidence ? [5, 4] : []);
     g.strokeRect(x, y, w, h);
-    const label = `${l.predicted_class} ${Math.round(l.class_confidence * 100)}%`;
+    const label = `${CLASS_META[l.predicted_class].label} ${Math.round(l.class_confidence * 100)}%`;
     const tw = g.measureText(label).width + 6;
     g.setLineDash([]);
     g.fillStyle = color; g.fillRect(x, y - 16, tw, 16);
@@ -92,10 +92,10 @@ export async function downloadPdf(src: string, analysis: AnalyzeResponse) {
   const rows: string[] = [
     `Total lesi: ${s.total_lesions}`,
     `Estimasi keparahan: ${SEVERITY_META[s.severity].label}`,
-    `Rata-rata confidence: ${s.avg_confidence == null ? '-' : Math.round(s.avg_confidence * 100) + '%'}`,
+    `Rata-rata keyakinan: ${s.avg_confidence == null ? '-' : Math.round(s.avg_confidence * 100) + '%'}`,
     `Waktu analisis: ${analysis.timing_ms.total} ms`,
     '',
-    ...(Object.keys(CLASS_META) as AcneClass[]).map((k) => `${CLASS_META[k].label} (${k}): ${s.class_counts[k]}`),
+    ...(Object.keys(CLASS_META) as AcneClass[]).map((k) => `${CLASS_META[k].label}: ${s.class_counts[k]}`),
   ];
   for (const r of rows) { doc.text(r, 15 + imgW + 8, ty); ty += 6; }
 

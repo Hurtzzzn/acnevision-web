@@ -1,27 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Bot, Send } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Bot, MessageSquareText, Send } from 'lucide-react';
 import { COPY, type ChatMessage } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { useUi } from '../store/ui';
-import { Disclaimer, Spinner } from './ui';
-
-function useTypewriter(text: string | null, enabled: boolean) {
-  const [shown, setShown] = useState('');
-  useEffect(() => {
-    if (!text) { setShown(''); return; }
-    if (!enabled) { setShown(text); return; }
-    let i = 0;
-    setShown('');
-    const t = setInterval(() => {
-      i += 3;
-      setShown(text.slice(0, i));
-      if (i >= text.length) clearInterval(t);
-    }, 16);
-    return () => clearInterval(t);
-  }, [text, enabled]);
-  return shown;
-}
+import { Spinner } from './ui';
 
 export function Bubble({ m }: { m: ChatMessage }) {
   const mine = m.role === 'user';
@@ -36,92 +19,115 @@ export function Bubble({ m }: { m: ChatMessage }) {
   );
 }
 
-/** Shared chat thread + input. Used by the result page (compact) and /chat. */
-export function ChatInput({ conversationId, onSent, disabled }: {
+/** Shared chat input. `pending` sends a quick question right away (used by the suggestion chips on the result page). */
+export function ChatInput({ conversationId, onSent, disabled, pending, onPendingHandled, placeholder = COPY.chat.defaultPlaceholder }: {
   conversationId: string; onSent: (u: ChatMessage, a: ChatMessage) => void; disabled?: boolean;
+  pending?: string | null; onPendingHandled?: () => void; placeholder?: string;
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const toast = useUi((s) => s.toast);
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const content = text.trim();
+  async function send(content: string, clearInput: boolean) {
     if (!content || busy) return;
     setBusy(true);
     try {
       const res = await api.sendMessage(conversationId, content);
-      setText('');
+      if (clearInput) setText('');
       onSent(res.user_message, res.assistant_message);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Gagal mengirim pesan.', 'error');
+      toast(err instanceof Error ? err.message : COPY.chat.sendFailed, 'error');
     } finally {
       setBusy(false);
     }
   }
 
+  useEffect(() => {
+    if (!pending) return;
+    onPendingHandled?.();
+    send(pending, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pending]);
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    send(text.trim(), true);
+  }
+
   return (
     <form onSubmit={submit} className="flex gap-2">
       <input
-        className="input" placeholder="Tanya soal perawatan kulit..." maxLength={1000}
+        className="input" placeholder={placeholder} maxLength={1000}
         value={text} onChange={(e) => setText(e.target.value)} disabled={disabled || busy}
-        aria-label="Pesan untuk asisten AI"
+        aria-label={COPY.chat.inputLabel}
       />
-      <button className="btn-primary" disabled={disabled || busy || !text.trim()} aria-label="Kirim">
+      <button className="btn-primary" disabled={disabled || busy || !text.trim()} aria-label={COPY.chat.send}>
         {busy ? <Spinner /> : <Send className="h-4 w-4" />}
       </button>
     </form>
   );
 }
 
-export function ChatPanel({ conversationId, recommendation, isFallback, loading, canFollowUp }: {
-  conversationId: string | null; recommendation: string | null; isFallback?: boolean; loading: boolean; canFollowUp: boolean;
-}) {
-  const [followUps, setFollowUps] = useState<ChatMessage[]>([]);
-  const typed = useTypewriter(recommendation, true);
-  const openLoginPrompt = useUi((s) => s.openLoginPrompt);
-  const loc = useLocation();
-  const endRef = useRef<HTMLDivElement>(null);
+/** "Tanya lebih lanjut" panel on the result page: quick-question chips, the follow-up thread, and the input. No disclaimer here (the page shows it once). */
+export function ChatPanel({ conversationId, canFollowUp, loading = false }: { conversationId: string | null; canFollowUp: boolean; loading?: boolean }) {
+  const [thread, setThread] = useState<ChatMessage[]>([]);
+  const [pending, setPending] = useState<string | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+  const ready = canFollowUp && !!conversationId;
+  // While the recommendation (and its conversation) is on the way, show the same controls disabled so the panel keeps its height.
+  const showControls = ready || loading;
 
-  useEffect(() => { setFollowUps([]); }, [conversationId]);
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'nearest' }); }, [followUps.length]);
+  useEffect(() => { setThread([]); }, [conversationId]);
+  // Scroll only the message list (never the page), and only once messages exist.
+  useEffect(() => {
+    const el = threadRef.current;
+    if (el && thread.length) el.scrollTop = el.scrollHeight;
+  }, [thread.length]);
 
   return (
-    <section className="card" aria-label="Rekomendasi chatbot">
-      <div className="mb-4 flex items-center justify-between">
-        <h3>Rekomendasi AI</h3>
-        {canFollowUp && conversationId && <Link to="/chat" className="text-sm font-medium text-primary-600 hover:underline">Buka di halaman Konsultasi</Link>}
+    <section className="card" aria-labelledby="chat-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary-600" aria-hidden><MessageSquareText className="h-5 w-5" /></span>
+          <div>
+            <h2 id="chat-title" className="text-headline-sm">{COPY.chat.title}</h2>
+            <p className="text-body-md text-ink-600">{COPY.chat.subtitle}</p>
+          </div>
+        </div>
+        {ready && <Link to="/chat" className="rounded text-label-md text-primary-600 hover:underline">{COPY.chat.openChat}</Link>}
       </div>
 
-      <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
-        {loading && <Spinner label="Menyiapkan rekomendasi..." />}
-        {recommendation && (
-          <Bubble m={{ id: 'rec', role: 'assistant', content: typed, is_fallback: isFallback, created_at: '' }} />
-        )}
-        {followUps.map((m) => <Bubble key={m.id} m={m} />)}
-        <div ref={endRef} />
-      </div>
+      {showControls ? (
+        <>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="text-body-sm text-ink-500">{COPY.chat.quickLabel}</span>
+            {COPY.chat.quick.map((q) => (
+              <button key={q} type="button" className="rounded-full border border-primary-200 bg-primary-50 px-3 py-1.5 text-label-md text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPending(q)} disabled={!ready}>
+                {q}
+              </button>
+            ))}
+          </div>
 
-      <div className="relative mt-4">
-        {canFollowUp && conversationId ? (
-          <ChatInput conversationId={conversationId} onSent={(u, a) => setFollowUps((f) => [...f, u, a])} />
-        ) : (
-          <>
-            <div className="pointer-events-none flex gap-2 opacity-40" aria-hidden>
-              <input className="input" disabled placeholder="Tanya soal perawatan kulit..." />
-              <button className="btn-primary" disabled><Send className="h-4 w-4" /></button>
+          {thread.length > 0 && (
+            <div ref={threadRef} className="mt-4 max-h-96 space-y-3 overflow-y-auto" aria-live="polite">
+              {thread.map((m) => <Bubble key={m.id} m={m} />)}
             </div>
-            <div className="absolute inset-0 flex items-center justify-between gap-3 rounded-btn bg-white/80 px-3 backdrop-blur-[1px]">
-              <span className="text-sm font-medium text-ink-900">{COPY.loginGateChat}</span>
-              <button
-                className="btn-primary shrink-0"
-                onClick={() => openLoginPrompt({ message: COPY.loginGateChat, redirectTo: loc.pathname })}
-              >Masuk</button>
-            </div>
-          </>
-        )}
-      </div>
-      <div className="mt-3"><Disclaimer /></div>
+          )}
+
+          <div className="mt-4">
+            <ChatInput
+              conversationId={conversationId ?? ''}
+              disabled={!ready}
+              onSent={(u, a) => setThread((t) => [...t, u, a])}
+              pending={pending}
+              placeholder={COPY.chat.placeholder}
+              onPendingHandled={() => setPending(null)}
+            />
+          </div>
+        </>
+      ) : (
+        <p className="mt-4 text-body-md text-ink-500">{COPY.chat.unavailable}</p>
+      )}
     </section>
   );
 }

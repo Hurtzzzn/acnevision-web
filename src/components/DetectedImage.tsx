@@ -9,6 +9,18 @@ const LEADER_GAP = 20;
 
 type Pos = { x: number; y: number };
 
+/** The fields the photo overlay needs; both detection lesions and classified lesions satisfy it. */
+export type BoxLesion = Pick<DetectedLesion, 'idx' | 'bbox' | 'det_confidence'>;
+
+const DEFAULT_COLOR = '#2563EB';
+
+/** Readable text color (dark or white) for a filled chip of the given hex color. */
+export function textOn(hex: string): string {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? '#0F172A' : '#FFFFFF';
+}
+
 function overlaps(a: Pos, b: Pos) {
   return a.x < b.x + CHIP && b.x < a.x + CHIP && a.y < b.y + CHIP && b.y < a.y + CHIP;
 }
@@ -17,7 +29,7 @@ function overlaps(a: Pos, b: Pos) {
  * Place one numbered chip per lesion so no two chips overlap. Tries spots hugging the box first,
  * then widens the search ring by ring. Coordinates are px relative to the image box.
  */
-function placeChips(lesions: DetectedLesion[], W: number, H: number): Map<number, Pos> {
+function placeChips(lesions: BoxLesion[], W: number, H: number): Map<number, Pos> {
   const placed: Pos[] = [];
   const out = new Map<number, Pos>();
   const clamp = (p: Pos): Pos => ({ x: Math.max(0, Math.min(W - CHIP, p.x)), y: Math.max(0, Math.min(H - CHIP, p.y)) });
@@ -47,9 +59,9 @@ function placeChips(lesions: DetectedLesion[], W: number, H: number): Map<number
   return out;
 }
 
-interface DetectedImageProps {
+interface DetectedImageProps<T extends BoxLesion> {
   src: string;
-  lesions: DetectedLesion[];
+  lesions: T[];
   alt: string;
   showBoxes?: boolean;
   /** Image width multiplier; the frame scrolls when > 1. */
@@ -61,18 +73,42 @@ interface DetectedImageProps {
   focus?: { cx: number; cy: number; key: number } | null;
   onHover?: (idx: number | null) => void;
   onSelect?: (idx: number) => void;
+  /** Per-lesion box color. Omit for the neutral blue used by guests (no class information). */
+  getColor?: (l: T) => string;
+  /** Low-confidence lesions get a dashed box. */
+  isLow?: (l: T) => boolean;
+  /** Accessible name of a number chip; defaults to the neutral "Jerawat n". */
+  getLabel?: (l: T) => string;
+  /** Grad-CAM PNGs (base64) by lesion idx, drawn inside each box. */
+  heatmaps?: Record<number, string>;
+  /** Width / height of the photo when known up front (e.g. from the API), so the frame has its final height before the image loads. */
+  aspect?: number;
 }
 
 /**
- * Guest result photo: neutral blue boxes with numbers 1..n, no class color or class name.
+ * Result photo with numbered boxes 1..n. Guests get neutral blue boxes with no class color or name;
+ * logged-in results pass `getColor` / `isLow` / `getLabel` to color by class.
  * Keyboard path is the lesion list; chips here are mouse/touch targets (tabIndex -1) that keep an aria-label.
  */
-export function DetectedImage({
+export function DetectedImage<T extends BoxLesion>({
   src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, selectedIdx = null, focus = null, onHover, onSelect,
-}: DetectedImageProps) {
+  getColor, isLow, getLabel, heatmaps, aspect,
+}: DetectedImageProps<T>) {
+  const classy = !!getColor;
   const frameRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // Natural ratio once the image has loaded; until then the frame reserves space (given aspect, else 4:3) and draws no overlay.
+  const [natural, setNatural] = useState<number | null>(null);
+  const loaded = natural != null;
+  const ratio = natural ?? aspect ?? 4 / 3;
+
+  useEffect(() => {
+    setNatural(null);
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth) setNatural(img.naturalWidth / img.naturalHeight);
+  }, [src]);
 
   // When zoomed, bring the selected lesion to the middle of the scrollable frame (list selection is the keyboard path).
   useEffect(() => {
@@ -98,9 +134,16 @@ export function DetectedImage({
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const measure = () => setSize({ w: el.clientWidth, h: el.clientHeight });
-    measure();
-    const ro = new ResizeObserver(measure);
+    // Whole pixels only, and ignore changes under 1px, so fractional layouts (browser zoom, display scaling) can never feed back
+    // into another measure. The size comes from the wrapper's content box, whose height is set by CSS aspect-ratio.
+    const apply = (w: number, h: number) => setSize((cur) => (
+      Math.abs(cur.w - w) >= 1 || Math.abs(cur.h - h) >= 1 ? { w: Math.round(w), h: Math.round(h) } : cur
+    ));
+    // ResizeObserver reports the initial size right after observe(), so one source (contentRect) feeds every update.
+    const ro = new ResizeObserver((entries) => {
+      const box = entries[0].contentRect;
+      apply(box.width, box.height);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -113,15 +156,22 @@ export function DetectedImage({
   return (
     <div
       ref={frameRef}
-      className="overflow-auto bg-tint"
+      // Scrollbars only when zoomed in. With overflow-auto at 100%, a fractional photo height can overflow by a sub-pixel, which
+      // adds a scrollbar, narrows the photo, shrinks its height, removes the scrollbar, and repeats (the photo "shakes").
+      // When zoomed, the gutter is reserved so a scrollbar appearing cannot resize the photo either.
+      className={zoom > 1 ? 'overflow-auto bg-tint [scrollbar-gutter:stable]' : 'overflow-hidden bg-tint'}
       style={zoom > 1 ? { maxHeight: '75vh' } : undefined}
       tabIndex={zoom > 1 ? 0 : undefined}
       aria-label={zoom > 1 ? alt : undefined}
     >
-      <div ref={wrapRef} className="relative" style={{ width: `${zoom * 100}%` }}>
-        <img src={src} alt={alt} className="block w-full" />
-        {showBoxes && lesions.map((l) => {
+      <div ref={wrapRef} className="relative" style={{ width: `${zoom * 100}%`, aspectRatio: String(ratio) }}>
+        <img
+          ref={imgRef} src={src} alt={alt} className="absolute inset-0 block h-full w-full"
+          onLoad={(e) => setNatural(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight)}
+        />
+        {loaded && showBoxes && lesions.map((l) => {
           const active = activeIdx === l.idx;
+          const color = getColor?.(l) ?? DEFAULT_COLOR;
           return (
             <div
               key={l.idx}
@@ -129,15 +179,21 @@ export function DetectedImage({
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
-              className={`absolute cursor-pointer rounded-[3px] border-primary-600 transition-colors ${active ? 'z-20 border-[3px] bg-primary-600/20' : 'border-[1.5px]'}`}
+              className={`absolute cursor-pointer rounded-[3px] transition-colors ${active ? 'z-20 border-[3px]' : 'border-[1.5px]'}`}
               style={{
                 left: `${l.bbox.x1 * 100}%`, top: `${l.bbox.y1 * 100}%`,
                 width: `${(l.bbox.x2 - l.bbox.x1) * 100}%`, height: `${(l.bbox.y2 - l.bbox.y1) * 100}%`,
+                borderColor: color, borderStyle: isLow?.(l) ? 'dashed' : 'solid',
+                background: active ? `${color}33` : undefined,
               }}
-            />
+            >
+              {heatmaps?.[l.idx] && (
+                <img src={`data:image/png;base64,${heatmaps[l.idx]}`} alt="" className="pointer-events-none absolute inset-0 h-full w-full opacity-80" />
+              )}
+            </div>
           );
         })}
-        {showBoxes && size.w > 0 && (
+        {loaded && showBoxes && size.w > 0 && (
           <svg width={size.w} height={size.h} className="pointer-events-none absolute left-0 top-0 z-10" aria-hidden>
             {lesions.map((l) => {
               const p = chips.get(l.idx);
@@ -153,28 +209,32 @@ export function DetectedImage({
               return (
                 <line
                   key={l.idx} x1={cx} y1={cy} x2={px} y2={py}
-                  stroke="#2563EB" strokeWidth={active ? 1.75 : 1.25} strokeOpacity={active ? 1 : 0.8}
+                  stroke={getColor?.(l) ?? DEFAULT_COLOR} strokeWidth={active ? 1.75 : 1.25} strokeOpacity={active ? 1 : 0.8}
                 />
               );
             })}
           </svg>
         )}
-        {showBoxes && lesions.map((l) => {
+        {loaded && showBoxes && lesions.map((l) => {
           const p = chips.get(l.idx);
           if (!p) return null;
           const active = activeIdx === l.idx;
+          const color = getColor?.(l);
           return (
             <button
               key={`chip-${l.idx}`}
               type="button"
-              aria-label={`${COPY.detectResult.lesionName} ${l.idx + 1}`}
+              aria-label={getLabel?.(l) ?? `${COPY.detectResult.lesionName} ${l.idx + 1}`}
               aria-pressed={active}
               tabIndex={-1}
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
-              className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] font-semibold leading-none shadow-card transition-colors ${active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
-              style={{ left: p.x, top: p.y, width: CHIP, height: CHIP }}
+              className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] font-semibold leading-none shadow-card transition-colors ${classy ? (active ? '' : 'frosted border-2 text-ink-900') : active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
+              style={{
+                left: p.x, top: p.y, width: CHIP, height: CHIP,
+                ...(color && { borderColor: color, ...(active && { background: color, color: textOn(color) }) }),
+              }}
             >
               {l.idx + 1}
             </button>

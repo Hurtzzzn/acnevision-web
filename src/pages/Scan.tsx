@@ -22,7 +22,7 @@ function ProcessingState({ step }: { step: number }) {
           const done = i < step;
           const active = i === step;
           return (
-            <li key={label} className={`flex items-center gap-3 text-body-lg ${active ? 'font-semibold text-ink-900' : done ? 'text-ink-600' : 'text-ink-500'}`}>
+            <li key={label} className={`flex items-center gap-3 text-body-lg ${active ? 'text-ink-900' : done ? 'text-ink-600' : 'text-ink-500'}`}>
               <span
                 className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${done ? 'bg-primary-600 text-white' : active ? 'border-2 border-primary-600' : 'border border-border-strong'}`}
                 aria-hidden

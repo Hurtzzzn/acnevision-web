@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DetectedLesion } from '@acnevision/shared';
-import { isLowConfidence, sortByConfidence, summarizeConfidence } from './detection';
+import { isLowConfidence, sortByClassConfidence, sortByConfidence, summarizeConfidence } from './detection';
 
 const lesion = (idx: number, det_confidence: number): DetectedLesion => ({
   idx, det_confidence, label: 'Jerawat', bbox: { x1: 0.1, y1: 0.1, x2: 0.2, y2: 0.2 },
@@ -29,5 +29,19 @@ describe('detection list helpers', () => {
 
   it('returns a null average for an empty list', () => {
     expect(summarizeConfidence([])).toEqual({ count: 0, avgPct: null, lowCount: 0 });
+  });
+});
+
+describe('sortByClassConfidence', () => {
+  const l = (idx: number, class_confidence: number) => ({ idx, class_confidence });
+
+  it('sorts by class confidence, highest first, keeping each idx', () => {
+    expect(sortByClassConfidence([l(0, 0.7), l(1, 0.95), l(2, 0.7), l(3, 0.5)]).map((x) => x.idx)).toEqual([1, 0, 2, 3]);
+  });
+
+  it('does not mutate the input', () => {
+    const input = [l(0, 0.6), l(1, 0.9)];
+    sortByClassConfidence(input);
+    expect(input.map((x) => x.idx)).toEqual([0, 1]);
   });
 });

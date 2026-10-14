@@ -5,41 +5,34 @@ import { COPY } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
 import { useScan } from '../store/scan';
-import { Disclaimer, ErrorBox } from '../components/ui';
-import { PhotoInput, type PhotoMethod } from '../components/PhotoInput';
+import { Disclaimer } from '../components/ui';
+import { FrameAction, FrameStage, FrameTop, PhotoInput, StageAlert, type PhotoMethod } from '../components/PhotoInput';
 
 const C = COPY.analyze;
 const STEP_MS = 1500;
 const BENEFIT_ICONS = [Crosshair, Tags, Layers, MessageSquareText];
 const TIP_ICONS = [Sun, UserRound, Wand2];
 
-/** Calm processing view: the photo with a soft scan line and three small steps taking turns. Steps are indicative, not real progress. */
-function Processing({ imageUrl, step, onCancel }: { imageUrl: string; step: number; onCancel: () => void }) {
+/** Steps taking turns over the bottom of the photo. Active state is shown by color and marker only (no weight change), so text never reflows. */
+function Steps({ step }: { step: number }) {
   return (
-    <div className="flex flex-col items-center gap-5 py-2" role="status" aria-live="polite" aria-label={C.processingLabel}>
-      <div className="relative w-full max-w-sm overflow-hidden rounded-card bg-tint">
-        <img src={imageUrl} alt={C.processingAlt} className="aspect-[4/3] w-full object-cover opacity-90" />
-        <div className="scan-line" aria-hidden />
-      </div>
-      <ol className="w-full max-w-xs space-y-3">
-        {C.progress.map((label, i) => {
-          const done = i < step;
-          const active = i === step;
-          return (
-            <li key={label} className={`flex items-center gap-3 text-body-lg ${active ? 'font-semibold text-ink-900' : done ? 'text-ink-600' : 'text-ink-500'}`} aria-current={active ? 'step' : undefined}>
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${done ? 'bg-primary-600 text-white' : active ? 'border-2 border-primary-600' : 'border border-border-strong'}`}
-                aria-hidden
-              >
-                {done ? <Check className="h-3 w-3" /> : active ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-600" /> : null}
-              </span>
-              {label}
-            </li>
-          );
-        })}
-      </ol>
-      <button className="btn-outline" onClick={onCancel}>{C.cancel}</button>
-    </div>
+    <ol className="absolute inset-x-3 bottom-3 z-10 space-y-2 rounded-btn bg-white/90 p-3">
+      {C.progress.map((label, i) => {
+        const done = i < step;
+        const active = i === step;
+        return (
+          <li key={label} className={`flex items-center gap-3 text-body-md ${active ? 'text-ink-900' : done ? 'text-ink-600' : 'text-ink-500'}`} aria-current={active ? 'step' : undefined}>
+            <span
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${done ? 'bg-primary-600 text-white' : active ? 'border-2 border-primary-600' : 'border border-border-strong'}`}
+              aria-hidden
+            >
+              {done ? <Check className="h-3 w-3" /> : active ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-600" /> : null}
+            </span>
+            <span className="min-w-0 flex-1">{label}</span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -101,32 +94,51 @@ export default function Analyze() {
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <div className="card space-y-4">
+        {/* Camera, preview and processing share one skeleton (top row, 4:3 stage, two action rows), so the card never changes height. */}
+        <div className="card">
           {busy && previewUrl ? (
-            <Processing imageUrl={previewUrl} step={step} onCancel={cancel} />
+            <>
+              <FrameTop><p className="text-label-md text-ink-900" role="status">{C.processingLabel}</p></FrameTop>
+              <FrameStage>
+                <img src={previewUrl} alt={C.processingAlt} className="absolute inset-0 h-full w-full object-cover opacity-90" />
+                <div className="scan-line" aria-hidden />
+                <Steps step={step} />
+              </FrameStage>
+              <FrameAction />
+            </>
           ) : photo && previewUrl ? (
             <>
-              <div className="flex items-center justify-between gap-3">
-                <p className="flex items-center gap-2 text-label-md text-ink-900">
-                  <Check className="h-4 w-4 text-primary-600" aria-hidden /> {C.photoReady}
-                </p>
-                <button className="btn-outline px-3 py-1.5" onClick={() => { setPhoto(null); setError(null); }}>
+              <FrameTop>
+                <p className="flex items-center gap-2 text-label-md text-ink-900"><Check className="h-4 w-4 text-primary-600" aria-hidden /> {C.photoReady}</p>
+              </FrameTop>
+              <FrameStage>
+                <img src={previewUrl} alt={C.previewAlt} className="absolute inset-0 h-full w-full object-contain" />
+                {error && (
+                  <StageAlert>
+                    <span>{error}</span>
+                    <button className="shrink-0 font-semibold underline" onClick={start}>{COPY.scan.retry}</button>
+                  </StageAlert>
+                )}
+              </FrameStage>
+              <FrameAction>
+                <button className="btn-outline h-full w-full" onClick={() => { setPhoto(null); setError(null); }}>
                   <RefreshCw className="h-4 w-4" aria-hidden /> {C.changePhoto}
                 </button>
-              </div>
-              <img src={previewUrl} alt={C.previewAlt} className="aspect-[4/3] w-full rounded-card bg-tint object-contain" />
+              </FrameAction>
             </>
           ) : (
             <PhotoInput onPick={(file, method) => { setError(null); setPhoto({ file, method }); }} defaultMode="upload" labels={{ upload: C.tabUpload, camera: C.tabCamera }} />
           )}
 
-          {error && <ErrorBox message={error} onRetry={start} />}
-
-          {!busy && (
-            <button className="btn-primary w-full py-3" onClick={start} disabled={!photo}>
-              <Sparkles className="h-4 w-4" aria-hidden /> {C.start}
-            </button>
-          )}
+          <div className="mt-4 h-11">
+            {busy ? (
+              <button className="btn-outline h-full w-full" onClick={cancel}>{C.cancel}</button>
+            ) : (
+              <button className="btn-primary h-full w-full" onClick={start} disabled={!photo}>
+                <Sparkles className="h-4 w-4" aria-hidden /> {C.start}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-6">
