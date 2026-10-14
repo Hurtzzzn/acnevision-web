@@ -1,16 +1,15 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, Info } from 'lucide-react';
+import { ArrowRight, Info } from 'lucide-react';
 import { COPY, SEVERITY_META, SEVERITY_ORDER, type ScanListItem } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
 import { api } from '../lib/runtime';
 import { fmtDate } from '../lib/errors';
 import { Disclaimer, SeverityChip } from '../components/ui';
 import { Reveal } from '../components/Reveal';
+import { FeatureTabs } from '../components/home/FeatureTabs';
 import { HeroVisual } from '../components/home/HeroVisual';
-import { MemberPreview } from '../components/home/MemberPreview';
 import { DetectStepVisual, PhotoStepVisual, ResultStepVisual } from '../components/home/StepVisuals';
-import logoOrnament from '../assets/images/logo-480.webp';
 
 const STEP_VISUALS = [PhotoStepVisual, DetectStepVisual, ResultStepVisual];
 
@@ -44,8 +43,7 @@ function LastScan() {
 export default function Home() {
   const c = COPY.home;
   return (
-    // -mb-8 cancels the page's bottom padding so the closing panel sits a sensible distance above the footer
-    <div className="-mb-8">
+    <div>
       <LastScan />
 
       <section
@@ -93,7 +91,7 @@ export default function Home() {
             <h2 id="steps-title" className="md:text-headline-xl">{c.stepsTitle}</h2>
             <p className="mt-2 text-[1.0625rem]">{c.stepsIntro}</p>
           </div>
-          <Link to="/how-it-works" className="inline-flex items-center gap-1.5 self-start rounded-btn py-1 text-label-md text-primary-600 transition-colors hover:text-primary-700 md:self-auto">
+          <Link to="/how-it-works" className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-btn text-label-md text-primary-600 transition-colors hover:text-primary-700 md:self-auto">
             {c.stepsMore} <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
         </Reveal>
@@ -126,79 +124,21 @@ export default function Home() {
         </ol>
       </section>
 
-      <section
-        className={`${SECTION_GAP} rounded-[2rem] bg-tint px-5 py-10 sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-14`}
-        aria-labelledby="tiers-title"
-      >
-        <Reveal className="max-w-xl">
+      <section className={SECTION_GAP} aria-labelledby="tiers-title">
+        <div className="max-w-xl">
           <h2 id="tiers-title" className="md:text-headline-xl">{c.tiersTitle}</h2>
           <p className="mt-2 text-[1.0625rem]">{c.tiersIntro}</p>
-        </Reveal>
-
-        <div className="mt-8 grid gap-5 md:mt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,2.1fr)]">
-          <Reveal delay={100} className="card card-lift flex flex-col bg-white md:p-8">
-            <h3 className="text-headline-lg">{c.guestTitle}</h3>
-            <ul className="mt-5 space-y-4 text-[1.0625rem]">
-              {c.guestItems.map((t) => (
-                <li key={t} className="flex gap-3">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-success/10">
-                    <Check className="h-4 w-4 text-success" aria-hidden />
-                  </span>
-                  {t}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-auto pt-6 text-body-md text-ink-600">{c.guestPhotoNote}</p>
-            <Link to="/scan" className="btn-outline mt-4 self-start rounded-full">{c.cta}</Link>
-          </Reveal>
-
-          <Reveal
-            delay={170}
-            className="card-lift rounded-[1.75rem] bg-gradient-to-br from-primary-900 to-primary-800 p-6 text-white shadow-float md:p-8"
-          >
-            <h3 className="text-headline-lg text-white">{c.memberTitle}</h3>
-            <ul className="mt-5 space-y-3">
-              {c.memberItems.map((t) => (
-                <li key={t} className="flex gap-2.5 text-primary-100"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary-300" aria-hidden />{t}</li>
-              ))}
-            </ul>
-            <div className="mt-6">
-              <MemberPreview />
-            </div>
-            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-              <Link to="/register" className="btn rounded-full bg-white px-6 text-primary-800 hover:bg-primary-50 focus-visible:outline-white">{c.register}</Link>
-              <Link to="/login" className="rounded-btn text-label-md text-white underline-offset-4 hover:underline focus-visible:outline-white">{c.login}</Link>
-            </div>
-          </Reveal>
         </div>
 
-        <Reveal className="mt-8">
+        <div className="mt-8 md:mt-10">
+          <FeatureTabs />
+        </div>
+
+        <div className="mt-10">
           <Disclaimer variant="box" />
-        </Reveal>
+        </div>
       </section>
 
-      <Reveal
-        as="section"
-        className={`${SECTION_GAP} relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-primary-600 to-primary-700 px-6 py-12 text-white sm:px-10 md:rounded-[2.5rem] md:px-16 md:py-16`}
-      >
-        {/* Oversized logo, desaturated and faded into the blue so it reads as an ornament. Decorative. */}
-        <img
-          src={logoOrnament}
-          alt=""
-          width={480}
-          height={480}
-          loading="lazy"
-          decoding="async"
-          className="pointer-events-none absolute -bottom-20 -right-16 w-72 opacity-30 [filter:grayscale(1)_brightness(1.8)] md:-right-10 md:w-[26rem]"
-        />
-        <div className="relative max-w-xl">
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-white md:text-4xl">{c.closing.title}</h2>
-          <p className="mt-3 text-[1.0625rem] text-white">{c.closing.text}</p>
-          <Link to="/scan" className="btn mt-7 rounded-full bg-white px-7 py-3.5 text-base text-primary-700 hover:bg-primary-50 focus-visible:outline-white">
-            {c.cta} <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </div>
-      </Reveal>
     </div>
   );
 }

@@ -3,10 +3,12 @@ import { Camera, Upload } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { SeverityScale } from '../SeverityScale';
 import { SeverityBadge } from '../ui';
-import { ZoomBoxes, ZoomPhoto, type Zoom } from './SamplePhoto';
+import { DEMO_LESION_COUNT, DEMO_SEVERITY, lesionsInZoom, type Zoom } from '../../lib/demoLesions';
+import hero640 from '../../assets/images/heroine-640.webp';
+import { ZoomBoxes, ZoomPhoto } from './SamplePhoto';
 
-/** Close-up of the cheek for step 2: three times the hero's framing, boxes drawn large enough to read. */
-const CHEEK_ZOOM: Zoom = { scale: 2.6, cx: 60, cy: 48, aspect: 1.6 };
+/** Close-up of the cheek for step 2: it frames only some of the sample lesions, so its label says "N dari total". */
+const CHEEK_ZOOM: Zoom = { scale: 2.6, cx: 0.59, cy: 0.475, aspect: 1.6 };
 
 /** Shared frame for the three step illustrations: a soft rounded panel, decorative, hidden from assistive tech. */
 function Frame({ children }: { children: ReactNode }) {
@@ -17,13 +19,14 @@ function Frame({ children }: { children: ReactNode }) {
   );
 }
 
-/** Step 1: no photo, just the two ways to provide one, drawn as the scan screen's camera guide and its source buttons (labels reuse the scan tabs). */
+/** Step 1: a blurred sample photo as a camera preview with the face guide and camera button, plus the two ways to provide a photo (labels reuse the scan tabs). */
 export function PhotoStepVisual() {
   return (
     <Frame>
-      <div className="relative flex aspect-video items-center justify-center rounded-card border-2 border-dashed border-primary-200 bg-white/70">
-        <svg viewBox="0 0 120 150" className="h-[82%]" fill="none">
-          <ellipse cx="60" cy="75" rx="46" ry="62" stroke="#93C5FD" strokeWidth="2" strokeDasharray="6 6" />
+      <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-card bg-primary-100">
+        <img src={hero640} alt="" width={640} height={647} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full scale-110 object-cover object-[50%_30%] opacity-70 blur-md" />
+        <svg viewBox="0 0 120 150" className="relative h-[82%]" fill="none">
+          <ellipse cx="60" cy="75" rx="46" ry="62" stroke="#FFFFFF" strokeWidth="2.5" strokeDasharray="6 6" />
         </svg>
         <span className="absolute flex h-16 w-16 items-center justify-center rounded-full bg-primary-600 text-white shadow-float">
           <Camera className="h-8 w-8" />
@@ -46,35 +49,34 @@ export function DetectStepVisual() {
   return (
     <Frame>
       <ZoomPhoto zoom={CHEEK_ZOOM} className="rounded-card bg-white">
-        <ZoomBoxes zoom={CHEEK_ZOOM} size={12} />
+        <ZoomBoxes zoom={CHEEK_ZOOM} />
       </ZoomPhoto>
       <div className="mt-4 flex justify-center">
         <span className="tnum inline-flex items-center rounded-full bg-white px-4 py-2 text-label-md text-ink-700 shadow-card">
-          {COPY.home.preview.lesions}
+          {COPY.home.preview.lesionsPartial(lesionsInZoom(CHEEK_ZOOM).length, DEMO_LESION_COUNT)}
         </span>
       </div>
     </Frame>
   );
 }
 
-/** Step 3: a result card built from the real scale and badge components, with sample numbers (7 lesions = Hayashi "Sedang"). */
+/** Step 3: a result card built from the real scale and badge components, with the shared sample numbers. */
 export function ResultStepVisual() {
   return (
     <Frame>
       <div className="space-y-4 rounded-card border border-border bg-white p-4 shadow-card sm:p-5">
         <p className="text-headline-md text-ink-900 sm:text-headline-lg">
-          <span className="tnum text-primary-600">7</span> {COPY.detectResult.countUnit}
+          <span className="tnum text-primary-600">{DEMO_LESION_COUNT}</span> {COPY.detectResult.countUnit}
         </p>
         <div className="space-y-3">
           <p className="text-label-md text-ink-600">{COPY.detectResult.severityTitle}</p>
-          <SeverityBadge severity="moderate" isEstimate={false} large />
+          <SeverityBadge severity={DEMO_SEVERITY} isEstimate={false} large />
           <div className="pt-2">
-            <SeverityScale severity="moderate" total={7} large />
+            <SeverityScale severity={DEMO_SEVERITY} total={DEMO_LESION_COUNT} large />
           </div>
           <p className="text-body-md text-ink-600">{COPY.severityNote}</p>
         </div>
       </div>
-      <p className="mt-3 text-center text-sm text-ink-600">{COPY.home.preview.sample}</p>
     </Frame>
   );
 }

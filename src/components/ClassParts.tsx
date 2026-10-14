@@ -37,7 +37,19 @@ export function ProbabilityBars({ probabilities, selected }: { probabilities: Re
 }
 
 /** Small color key for the Grad-CAM heatmap, same ramp the heatmap itself uses: low influence (blue) to high (red). */
-export function HeatmapKey() {
+export function HeatmapKey({ compact = false }: { compact?: boolean }) {
+  if (compact) {
+    // Narrow containers: the bar spans the width and the two labels sit under its ends, each on one line
+    return (
+      <div className="mt-2 text-body-sm text-ink-500" role="img" aria-label={`${R.gradcamKeyLabel}: ${R.gradcamKeyLow} sampai ${R.gradcamKeyHigh}`}>
+        <span className="block h-2 w-full rounded-full" style={{ background: 'linear-gradient(to right, #2563EB, #FACC15, #DC2626)' }} aria-hidden />
+        <span className="mt-1 flex justify-between gap-2 whitespace-nowrap" aria-hidden>
+          <span>{R.gradcamKeyLow}</span>
+          <span>{R.gradcamKeyHigh}</span>
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="mt-2 flex items-center gap-2 text-body-sm text-ink-500" role="img" aria-label={`${R.gradcamKeyLabel}: ${R.gradcamKeyLow} sampai ${R.gradcamKeyHigh}`}>
       <span aria-hidden>{R.gradcamKeyLow}</span>

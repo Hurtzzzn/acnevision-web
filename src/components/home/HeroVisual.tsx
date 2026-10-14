@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { Lock } from 'lucide-react';
 import { COPY, SEVERITY_META } from '@acnevision/shared';
+import { DEMO_LESION_COUNT, DEMO_SEVERITY } from '../../lib/demoLesions';
 import { SampleBoxes, SamplePhoto } from './SamplePhoto';
 
 /**
@@ -28,7 +30,7 @@ function FloatingChip({ className, delay, duration, children }: { className: str
  */
 export function HeroVisual() {
   const p = COPY.home.preview;
-  const moderate = SEVERITY_META.moderate;
+  const severity = SEVERITY_META[DEMO_SEVERITY];
   return (
     <div className="mx-auto w-full max-w-[22rem] sm:max-w-[26rem] md:max-w-none">
       <div className="relative">
@@ -52,14 +54,15 @@ export function HeroVisual() {
 
           <div aria-hidden>
             <FloatingChip className="-left-[4%] top-[7%]" delay={600} duration={5.4}>
-              <span className="tnum">{p.lesions}</span>
+              <span className="tnum">{p.lesions(DEMO_LESION_COUNT)}</span>
             </FloatingChip>
             <FloatingChip className="-right-[4%] top-[22%]" delay={740} duration={6.4}>
-              <span className="h-2.5 w-2.5 rounded-full" style={{ background: moderate.solid }} />
-              {moderate.label}
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: severity.solid }} />
+              {p.estimate(severity.label)}
             </FloatingChip>
             <FloatingChip className="-left-[2%] bottom-[22%]" delay={880} duration={5.8}>
-              <span className="tnum">{COPY.result.confidenceValue(82)}</span>
+              <Lock className="h-3.5 w-3.5 text-ink-500" aria-hidden />
+              {p.lockedChip}
             </FloatingChip>
           </div>
         </SamplePhoto>
