@@ -64,6 +64,8 @@
   }
   /* Inset block inside a card (e.g. total jerawat) */
   .inset-panel { @apply rounded-btn bg-tint p-4; }
+  /* Quiet tinted block for plain lists of facts (About); not a disclaimer, so no accent strip */
+  .soft-panel { @apply rounded-card bg-tint px-5 py-5 md:px-7 md:py-6; }
   /* Soft medical disclaimer: light blue, 4px accent strip */
   .disclaimer { @apply rounded-btn border border-primary-200 border-l-4 border-l-primary-600 bg-primary-50 px-[18px] py-3.5 text-body-md text-primary-800; }
 }

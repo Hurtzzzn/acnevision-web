@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Lock } from 'lucide-react';
 import { COPY, SEVERITY_META } from '@acnevision/shared';
 import { DEMO_LESION_COUNT, DEMO_SEVERITY } from '../../lib/demoLesions';
+import { Crescent } from './Crescent';
 import { SampleBoxes, SamplePhoto } from './SamplePhoto';
 
 /**
@@ -34,20 +35,7 @@ export function HeroVisual() {
   return (
     <div className="mx-auto w-full max-w-[22rem] sm:max-w-[26rem] md:max-w-none">
       <div className="relative">
-        <svg viewBox="0 0 400 400" className="enter-hero-img absolute -inset-[4%] h-[108%] w-[108%]" aria-hidden>
-          <defs>
-            <linearGradient id="hero-crescent" x1="0.1" y1="0.1" x2="0.9" y2="0.9">
-              <stop offset="0" stopColor="#60A5FA" />
-              <stop offset="1" stopColor="#2563EB" />
-            </linearGradient>
-            <mask id="hero-crescent-cut">
-              <rect width="400" height="400" fill="#fff" />
-              <circle cx="246" cy="204" r="146" fill="#000" />
-            </mask>
-          </defs>
-          <circle cx="190" cy="200" r="172" fill="url(#hero-crescent)" mask="url(#hero-crescent-cut)" opacity="0.9" />
-          <circle cx="200" cy="200" r="190" fill="none" stroke="#93C5FD" strokeWidth="1.5" opacity="0.7" />
-        </svg>
+        <Crescent />
 
         <SamplePhoto alt={COPY.home.heroAlt} imgClassName="enter-hero-img" imgStyle={{ animationDelay: '120ms' }}>
           <SampleBoxes animated baseDelay={900} />

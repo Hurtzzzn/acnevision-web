@@ -307,6 +307,38 @@ export const COPY = {
     ctaTitle: 'Siap mencoba dengan fotomu?',
     ctaText: 'Deteksi awal bisa dicoba tanpa akun.',
   },
+  about: {
+    title: 'Dibuat supaya kamu bisa mengenali jerawatmu lebih dulu',
+    intro:
+      'AcneVision AI membantu kamu melihat di mana jerawatmu dan seberapa parah kelihatannya, cukup dari satu foto wajah. Ini alat bantu edukasi untuk memberi gambaran awal.',
+    photoAlt: 'Foto contoh wajah dengan kotak bernomor di setiap jerawat yang terdeteksi',
+    principlesTitle: 'Yang kami pegang',
+    principles: [
+      { title: 'Jujur di atas meyakinkan', text: 'Kami memilih menulis apa adanya daripada terdengar pasti. Kalau AI kurang yakin pada sebuah jerawat, kotaknya diberi garis putus-putus, bukan disembunyikan.' },
+      { title: 'Fotomu urusanmu', text: 'Kalau kamu belum masuk, fotomu tidak disimpan. Panduan posisi wajah saat memotret berjalan di perangkatmu.' },
+      { title: 'Deteksi dulu, tanpa harus daftar', text: 'Lokasi dan jumlah jerawat bisa kamu lihat tanpa akun. Akun baru perlu kalau kamu ingin tingkat keparahan dari AI, riwayat, dan tanya jawab.' },
+    ],
+    buildTitle: 'Cara dibuat',
+    stageLabel: (n: number) => `Tahap ${n}`,
+    stages: [
+      { title: 'Foto', text: 'Kamu memotret atau mengunggah foto wajah.' },
+      { title: 'Lokasi jerawat', text: 'AI menandai tiap jerawat dengan kotak dan menghitungnya.' },
+      { title: 'Tingkat keparahan', text: 'AI menilai seluruh foto ke dalam empat tingkat.' },
+    ],
+    levelsLabel: 'Empat tingkat keparahan',
+    buildNote:
+      'AI belajar dari data foto jerawat yang tingkatnya dinilai dari jumlah jerawat. Karena itu batas antar tingkat tipis: foto dengan jumlah jerawat di dekat batas bisa masuk ke tingkat di sebelahnya.',
+    limitsTitle: 'Yang belum bisa dilakukan alat ini',
+    limits: [
+      'Mengenali kondisi kulit selain jerawat.',
+      'Menjamin hasil yang sama dari foto yang gelap, buram, atau miring.',
+      'Memberi angka pasti. Hasilnya perkiraan.',
+    ],
+    limitsDoctor: 'Kalau jerawatmu nyeri, meradang, atau tidak membaik, temui dokter kulit.',
+    ctaTitle: 'Penasaran seperti apa jerawatmu hari ini?',
+    ctaText: 'Satu foto wajah cukup untuk melihat lokasi dan jumlah jerawatmu, tanpa akun.',
+    partner: 'Bermitra dengan PT. Dutormasi Membangun Indonesia',
+  },
   detect: {
     // Guest detection (no classification). Mock responses reuse these; the real backend sends its own.
     lesionLabel: 'Jerawat',
