@@ -3,7 +3,7 @@ import { COPY, SEVERITY_META, SEVERITY_ORDER, SEVERITY_THRESHOLDS, type Severity
 const { mild, moderate, severe } = SEVERITY_THRESHOLDS;
 
 /** Lesion-count range shown under each segment (guest estimate only), derived from SEVERITY_THRESHOLDS. */
-const RANGE: Record<Severity, string> = {
+export const SEVERITY_RANGE: Record<Severity, string> = {
   mild: `1-${mild}`,
   moderate: `${mild + 1}-${moderate}`,
   severe: `${moderate + 1}-${severe}`,
@@ -59,7 +59,7 @@ export function SeverityScale({ severity, total, large = false }: { severity: Se
         {SEVERITY_ORDER.map((s, i) => (
           <div key={s} className="flex-1 text-center">
             <p className={`${large ? 'text-label-md' : 'text-label-sm'} ${i === active ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>{SEVERITY_META[s].label}</p>
-            {estimate && <p className={`tnum ${large ? 'text-body-md' : 'text-body-sm'} text-ink-500`}>{RANGE[s]}</p>}
+            {estimate && <p className={`tnum ${large ? 'text-body-md' : 'text-body-sm'} text-ink-500`}>{SEVERITY_RANGE[s]}</p>}
           </div>
         ))}
       </div>

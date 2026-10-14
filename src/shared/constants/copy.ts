@@ -221,42 +221,91 @@ export const COPY = {
   },
   howItWorks: {
     title: 'Cara Kerja',
-    intro: 'Lima langkah dari foto sampai rekomendasi perawatan. Tiga langkah pertama bisa kamu coba tanpa akun.',
-    stepLabel: (n: number) => `Langkah ${n}`,
+    intro: 'Dari satu foto sampai saran perawatan, dalam lima langkah. Tiga langkah pertama bisa langsung kamu coba.',
+    freeGroup: 'Bisa langsung dicoba',
+    gateLabel: 'Masuk untuk lanjut',
+    gateText: 'Akun gratis membuka tingkat keparahan dari model AI, tingkat keyakinan, Grad-CAM, rekomendasi dari asisten AI, dan riwayat analisis.',
+    fullGroup: 'Analisis lengkap',
+    boxKey: 'Garis putus-putus: AI kurang pasti',
+    gradcamCaption: 'Grad-CAM: peta area yang diperhatikan AI',
     steps: [
       {
         title: 'Ambil atau Unggah Foto',
-        text: 'Izinkan akses kamera, atau unggah foto wajah dari galeri. Pencahayaan yang cukup dan wajah yang menghadap lurus membantu hasil lebih jelas.',
+        text: 'Buka kamera atau pilih foto dari galeri. Panduan oval di layar membantu kamu memposisikan wajah.',
+        points: [
+          'Cari cahaya yang merata dan hadap lurus ke kamera.',
+          'Lepas filter dan hindari makeup tebal.',
+          'Format JPEG, PNG, atau WEBP, maksimal 10 MB.',
+        ],
       },
       {
         title: 'AI Mendeteksi Jerawat',
-        text: 'AI menandai lokasi jerawat pada foto dengan kotak dan menghitung jumlah jerawat yang terdeteksi.',
+        text: 'AI mencari jerawat di fotomu dan menandainya satu per satu dengan kotak.',
+        points: [
+          'Satu kotak berarti satu jerawat. Angkanya sama dengan angka di daftar jerawat.',
+          'Kotak bergaris putus-putus berarti AI kurang pasti. Cek sendiri di fotomu.',
+          'Total jerawat dihitung dari jumlah kotak.',
+        ],
       },
       {
-        title: 'Lihat Hasil',
-        text: 'Kamu melihat jumlah jerawat dan perkiraan tingkat keparahan yang dihitung dari jumlah tersebut.',
+        title: 'Lihat Hasil Analisis',
+        text: 'Kamu langsung melihat jumlah jerawat dan perkiraan tingkat keparahannya. Rentang tiap tingkat ada di bagian Empat tingkat keparahan di bawah.',
+        points: [
+          'Foto yang dianalisis tanpa masuk tidak disimpan.',
+          'Hasilnya bisa diunduh sebagai gambar.',
+        ],
       },
       {
         title: 'Masuk untuk Analisis Lengkap',
-        text: 'Setelah masuk, model AI menilai tingkat keparahan dari seluruh foto, lengkap dengan tingkat keyakinan dan Grad-CAM yang menunjukkan area yang diperhatikan AI.',
+        text: 'Setelah masuk, model AI menilai tingkat keparahan dari seluruh foto, bukan dari satu jerawat.',
+        points: [
+          'Tingkat keyakinan menunjukkan seberapa yakin AI pada hasilnya.',
+          'Grad-CAM adalah peta warna: area yang hangat paling memengaruhi hasil.',
+          'Hasil bisa kamu simpan ke riwayat.',
+        ],
       },
       {
         title: 'Dapatkan Rekomendasi',
-        text: 'Asisten AI memberi saran perawatan sesuai hasil analisismu, dan kamu bisa bertanya lebih lanjut.',
+        text: 'Asisten AI memberi saran perawatan umum sesuai hasil analisismu, dan kamu bisa bertanya lebih lanjut.',
+        points: [
+          'Tanya apa saja soal perawatan kulit, atau mulai dari pertanyaan cepat.',
+          'Sarannya bersifat umum, bukan resep dan bukan pengganti dokter.',
+        ],
       },
     ],
-    accessTitle: 'Tanpa akun dan dengan akun',
-    accessIntro: 'Deteksi awal terbuka untuk semua orang. Akun membuka analisis yang lebih lengkap dan menyimpan riwayatmu.',
+    chatSample: {
+      assistant: 'Asisten AI',
+      reply: (n: number) => `Dari hasil analisismu ada ${n} jerawat. Untuk awal, cuci wajah dua kali sehari dengan pembersih lembut dan jangan memencet jerawat. Kalau mulai nyeri atau tidak membaik setelah beberapa minggu, sebaiknya periksakan ke dokter kulit.`,
+    },
     severityTitle: 'Empat tingkat keparahan',
-    severityIntro:
-      'Setelah masuk, model AI menilai tingkat keparahan dari seluruh foto, bukan dari satu jerawat. Tanpa akun, kamu mendapat perkiraan dari jumlah jerawat yang terdeteksi.',
+    severityIntro: 'Ketuk satu tingkat untuk melihat artinya.',
+    severityGroupLabel: 'Pilih tingkat keparahan',
+    severityRange: (range: string) => `Perkiraan tanpa masuk: ${range} jerawat`,
+    severityNote:
+      'Tanpa masuk, tingkat yang tampil adalah perkiraan dari jumlah jerawat. Setelah masuk, tingkatnya berasal dari penilaian model AI untuk seluruh foto, jadi bisa berbeda dari rentang ini.',
     severityText: {
       mild: 'Jerawat tidak banyak dan umumnya tidak terlalu meradang.',
       moderate: 'Jerawat lebih banyak dan mulai tampak tersebar di beberapa area.',
       severe: 'Jerawat banyak dan lebih sering terasa nyeri atau meradang.',
       very_severe: 'Jerawat sangat banyak atau meradang luas. Sebaiknya periksakan ke dokter kulit.',
     },
-    cta: 'Mulai Analisis',
+    faqTitle: 'Pertanyaan umum',
+    faq: [
+      {
+        q: 'Apakah fotoku disimpan?',
+        a: 'Foto yang dianalisis tanpa masuk tidak disimpan. Kalau kamu sudah masuk, fotomu baru tersimpan di riwayat setelah kamu menekan Simpan, dan bisa kamu hapus permanen kapan saja dari Riwayat.',
+      },
+      {
+        q: 'Seberapa bisa dipercaya hasilnya?',
+        a: 'Anggap hasilnya sebagai perkiraan. Cahaya, sudut, dan kualitas foto memengaruhi hasil, jadi jumlah jerawat bisa meleset. Setelah masuk, tingkat keyakinan membantu kamu menilai seberapa pasti AI.',
+      },
+      {
+        q: 'Apakah ini diagnosis medis?',
+        a: 'Bukan. Ini hasil analisis AI untuk gambaran awal. Kalau kamu ragu, atau jerawat terasa nyeri dan tidak membaik, konsultasikan ke dokter kulit.',
+      },
+    ],
+    ctaTitle: 'Siap mencoba dengan fotomu?',
+    ctaText: 'Deteksi awal bisa dicoba tanpa akun.',
   },
   detect: {
     // Guest detection (no classification). Mock responses reuse these; the real backend sends its own.

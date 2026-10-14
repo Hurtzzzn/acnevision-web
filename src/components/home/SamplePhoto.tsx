@@ -91,7 +91,8 @@ export function ZoomPhoto({ zoom, heat = false, className = '', children }: { zo
 }
 
 /** The sample lesions that fall inside a `ZoomPhoto`, drawn as boxes at the same size relative to the photo as in the hero. */
-export function ZoomBoxes({ zoom }: { zoom: Zoom }) {
+/** `uncertain` is the number of one lesion to draw with a dashed outline, the "AI is less sure" style of the real result. */
+export function ZoomBoxes({ zoom, uncertain }: { zoom: Zoom; uncertain?: number }) {
   return (
     <div className="absolute inset-0" aria-hidden>
       {lesionsInZoom(zoom).map((b) => {
@@ -101,7 +102,7 @@ export function ZoomBoxes({ zoom }: { zoom: Zoom }) {
             key={b.n}
             data-lesion-box
             className="absolute block aspect-square -translate-x-1/2 -translate-y-1/2 rounded-[4px] border-[1.5px] border-primary-600 bg-primary-600/10"
-            style={{ left: `${p.x}%`, top: `${p.y}%`, width: `${DEMO_BOX_SIZE * zoom.scale * 100}%` }}
+            style={{ left: `${p.x}%`, top: `${p.y}%`, width: `${DEMO_BOX_SIZE * zoom.scale * 100}%`, ...(b.n === uncertain ? { borderStyle: 'dashed' } : null) }}
           >
             <BoxNumber n={b.n} side={b.label} />
           </span>

@@ -11,7 +11,7 @@ import { ZoomBoxes, ZoomPhoto } from './SamplePhoto';
 const CHEEK_ZOOM: Zoom = { scale: 2.6, cx: 0.59, cy: 0.475, aspect: 1.6 };
 
 /** Shared frame for the three step illustrations: a soft rounded panel, decorative, hidden from assistive tech. */
-function Frame({ children }: { children: ReactNode }) {
+export function Frame({ children }: { children: ReactNode }) {
   return (
     <div className="w-full max-w-md rounded-[1.5rem] bg-gradient-to-br from-primary-50 to-primary-100/70 p-4 sm:p-5" aria-hidden>
       {children}
@@ -44,17 +44,20 @@ export function PhotoStepVisual() {
   );
 }
 
-/** Step 2: a close-up of the cheek with example detection boxes and the lesion count. */
-export function DetectStepVisual() {
+/** Step 2: a close-up of the cheek with example detection boxes and the lesion count. `showUncertain` draws one box dashed and adds its key. */
+export function DetectStepVisual({ showUncertain = false }: { showUncertain?: boolean }) {
+  const inZoom = lesionsInZoom(CHEEK_ZOOM);
+  const uncertain = showUncertain ? inZoom[inZoom.length - 1]?.n : undefined;
   return (
     <Frame>
       <ZoomPhoto zoom={CHEEK_ZOOM} className="rounded-card bg-white">
-        <ZoomBoxes zoom={CHEEK_ZOOM} />
+        <ZoomBoxes zoom={CHEEK_ZOOM} uncertain={uncertain} />
       </ZoomPhoto>
-      <div className="mt-4 flex justify-center">
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
         <span className="tnum inline-flex items-center rounded-full bg-white px-4 py-2 text-label-md text-ink-700 shadow-card">
-          {COPY.home.preview.lesionsPartial(lesionsInZoom(CHEEK_ZOOM).length, DEMO_LESION_COUNT)}
+          {COPY.home.preview.lesionsPartial(inZoom.length, DEMO_LESION_COUNT)}
         </span>
+        {showUncertain && <span className="text-body-sm text-ink-600">{COPY.howItWorks.boxKey}</span>}
       </div>
     </Frame>
   );
