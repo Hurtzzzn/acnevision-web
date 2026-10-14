@@ -9,8 +9,8 @@ export const SEVERITY_ORDER: readonly Severity[] = ['mild', 'moderate', 'severe'
  */
 export const SEVERITY_META: Record<Severity, { bg: string; text: string; solid: string; tint: string; label: string }> = {
   mild: { bg: '#DCFCE7', text: '#15803D', solid: '#15803D', tint: '#DCFCE7', label: 'Ringan' },
-  moderate: { bg: '#FEF3C7', text: '#B45309', solid: '#B45309', tint: '#FEF3C7', label: 'Sedang' },
-  severe: { bg: '#FEE2E2', text: '#B91C1C', solid: '#B91C1C', tint: '#FEE2E2', label: 'Berat' },
+  moderate: { bg: '#FEF9C3', text: '#A16207', solid: '#A16207', tint: '#FEF9C3', label: 'Sedang' },
+  severe: { bg: '#FFEDD5', text: '#C2410C', solid: '#C2410C', tint: '#FFEDD5', label: 'Berat' },
   very_severe: { bg: '#9F1239', text: '#FFFFFF', solid: '#9F1239', tint: '#FFE4E6', label: 'Sangat Berat' },
 };
 

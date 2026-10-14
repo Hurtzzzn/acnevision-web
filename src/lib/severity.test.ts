@@ -34,10 +34,32 @@ describe('severity classes', () => {
     expect(SEVERITY_META.very_severe).toMatchObject({ bg: '#9F1239', text: '#FFFFFF' });
   });
 
-  it('keeps the three lighter badge colors unchanged', () => {
-    expect(SEVERITY_META.mild).toMatchObject({ bg: '#DCFCE7', text: '#15803D' });
-    expect(SEVERITY_META.moderate).toMatchObject({ bg: '#FEF3C7', text: '#B45309' });
-    expect(SEVERITY_META.severe).toMatchObject({ bg: '#FEE2E2', text: '#B91C1C' });
+  it('uses a green, yellow, orange, rose progression for the four levels', () => {
+    expect(SEVERITY_META.mild).toMatchObject({ bg: '#DCFCE7', text: '#15803D', solid: '#15803D', tint: '#DCFCE7' });
+    expect(SEVERITY_META.moderate).toMatchObject({ bg: '#FEF9C3', text: '#A16207', solid: '#A16207', tint: '#FEF9C3' });
+    expect(SEVERITY_META.severe).toMatchObject({ bg: '#FFEDD5', text: '#C2410C', solid: '#C2410C', tint: '#FFEDD5' });
+    expect(SEVERITY_META.very_severe).toMatchObject({ solid: '#9F1239', tint: '#FFE4E6' });
+  });
+
+  it('keeps badge text readable (WCAG AA, 4.5:1) on its badge, and the solid colour on white', () => {
+    const lum = (hex: string) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a: string, b: string) => {
+      const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    for (const s of SEVERITY_ORDER) {
+      expect(ratio(SEVERITY_META[s].text, SEVERITY_META[s].bg), s + ' on badge').toBeGreaterThanOrEqual(4.5);
+      // solid doubles as text colour on white (scale labels, unfilled chips)
+      if (s !== 'very_severe') expect(ratio(SEVERITY_META[s].solid, '#FFFFFF'), s + ' on white').toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('gives every level its own tint, so adjacent levels never look alike', () => {
+    expect(new Set(SEVERITY_ORDER.map((s) => SEVERITY_META[s].tint)).size).toBe(4);
   });
 });
 
