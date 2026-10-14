@@ -2,15 +2,23 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
 import { COPY, SEVERITY_META, type Severity } from '@acnevision/shared';
 import { useUi } from '../store/ui';
+import logo96 from '../assets/images/logo-96.png';
+import logo192 from '../assets/images/logo-192.png';
 
 export function Logo({ className = '' }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2 font-bold text-ink-900 ${className}`}>
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600" aria-hidden>
-        <span className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-white">
-          <span className="h-1 w-1 rounded-full bg-white" />
-        </span>
-      </span>
+      {/* Decorative: the app name beside it already says what this is. Explicit size reserves the space (no layout shift). */}
+      <img
+        src={logo96}
+        srcSet={`${logo96} 96w, ${logo192} 192w`}
+        sizes="36px"
+        alt=""
+        width={36}
+        height={36}
+        decoding="async"
+        className="h-9 w-9 shrink-0"
+      />
       {COPY.appName}
     </span>
   );
