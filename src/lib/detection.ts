@@ -1,20 +1,17 @@
 import { LOW_CONFIDENCE_THRESHOLD, type DetectedLesion } from '@acnevision/shared';
 
-export const isLowConfidence = (l: DetectedLesion) => l.det_confidence < LOW_CONFIDENCE_THRESHOLD;
+type Scored = Pick<DetectedLesion, 'idx' | 'det_confidence'>;
+
+export const isLowConfidence = (l: Pick<DetectedLesion, 'det_confidence'>) => l.det_confidence < LOW_CONFIDENCE_THRESHOLD;
 
 /** Highest detection confidence first; ties keep the photo order. Does not renumber: `idx` stays the number on the box. */
-export function sortByConfidence(lesions: DetectedLesion[]): DetectedLesion[] {
+export function sortByConfidence<T extends Scored>(lesions: readonly T[]): T[] {
   return [...lesions].sort((a, b) => b.det_confidence - a.det_confidence || a.idx - b.idx);
 }
 
-/** Highest class confidence first for classified lesions; ties keep the photo order. `idx` stays the number on the box. */
-export function sortByClassConfidence<T extends { idx: number; class_confidence: number }>(lesions: readonly T[]): T[] {
-  return [...lesions].sort((a, b) => b.class_confidence - a.class_confidence || a.idx - b.idx);
-}
-
 /** Lesion list order: photo numbers by default, or most confident first. Never renumbers: `idx` stays the number on the box. */
-export function orderLesions<T extends { idx: number; class_confidence: number }>(lesions: readonly T[], byConfidence: boolean): T[] {
-  return byConfidence ? sortByClassConfidence(lesions) : [...lesions].sort((a, b) => a.idx - b.idx);
+export function orderLesions<T extends Scored>(lesions: readonly T[], byConfidence: boolean): T[] {
+  return byConfidence ? sortByConfidence(lesions) : [...lesions].sort((a, b) => a.idx - b.idx);
 }
 
 /** Real numbers for the one-line list summary. `avgPct` is null when there are no lesions. */

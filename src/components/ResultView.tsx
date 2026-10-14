@@ -1,12 +1,12 @@
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, Focus, ZoomIn, ZoomOut } from 'lucide-react';
-import { CLASS_META, COPY, type AnalyzeResponse, type Lesion } from '@acnevision/shared';
+import { COPY, severityMismatch, type AnalyzeResponse } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, pct } from '../lib/errors';
 import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { useUi } from '../store/ui';
-import { ClassDistribution, ClassLesionList } from './ClassParts';
+import { HeatmapKey, LesionList, ProbabilityBars } from './ClassParts';
 import { DetectedImage } from './DetectedImage';
 import { fitLesions, ToolButton, ZOOM_STEPS } from './PhotoTools';
 import { SeveritySummary } from './SeveritySummary';
@@ -20,11 +20,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'gradcam', label: R.tabGradcam },
 ];
 
-const lesionColor = (l: Lesion) => CLASS_META[l.predicted_class].color;
-const lesionLow = (l: Lesion) => l.is_low_confidence;
-const lesionLabel = (l: Lesion) =>
-  `${R.lesionName} ${l.idx + 1}, ${CLASS_META[l.predicted_class].label}, ${R.confidenceWord} ${Math.round(l.class_confidence * 100)}%`;
-
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1 px-3 py-3 lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:px-6">
@@ -36,7 +31,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 /** Full-analysis layout shared by /analysis/:id and /history/:scanId (docs/06 section 4.4b). `bottom` renders full width below. */
 export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeResponse; imageUrl: string; bottom?: ReactNode }) {
-  const { summary, lesions } = analysis;
+  const { summary, lesions, classification } = analysis;
   const toast = useUi((s) => s.toast);
   const uid = useId();
   const [tab, setTab] = useState<Tab>('boxes');
@@ -46,7 +41,7 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
   const [selected, setSelected] = useState<number | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [camLoading, setCamLoading] = useState(false);
-  const [cams, setCams] = useState<Record<number, string>>({});
+  const [cam, setCam] = useState<string | null>(null);
 
   const zoom = ZOOM_STEPS[zoomIdx];
   const activeIdx = hovered ?? selected;
@@ -54,11 +49,11 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
 
   async function chooseTab(next: Tab) {
     setTab(next);
-    if (next !== 'gradcam' || Object.keys(cams).length || !lesions.length) return;
+    if (next !== 'gradcam' || cam || !classification) return;
     setCamLoading(true);
     try {
-      const entries = await Promise.all(lesions.map(async (l) => [l.idx, await api.getGradcam(analysis.analysis_id, l.idx)] as const));
-      setCams(Object.fromEntries(entries));
+      // One heatmap for the whole photo; it may already ride along with the classification.
+      setCam(classification.gradcam_png_base64 || await api.getGradcam(analysis.analysis_id));
     } catch (e) {
       setTab('boxes');
       toast(errMessage(e, R.gradcamFailed), 'error');
@@ -100,7 +95,19 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
     );
   }
 
-  const summaryProps = { total: summary.total_lesions, severity: summary.severity, isEstimate: summary.severity_is_estimate, compact: true };
+  // Signed-in users see the model's severity only. The count-based estimate is used just to decide on the mismatch note.
+  const summaryProps = {
+    total: summary.total_lesions,
+    severity: classification?.severity ?? null,
+    compact: true,
+    model: classification
+      ? {
+        confidencePct: Math.round(classification.confidence * 100),
+        isLowConfidence: classification.is_low_confidence,
+        showMismatchNote: severityMismatch(summary.total_lesions, classification.severity),
+      }
+      : undefined,
+  };
 
   return (
     <div className="space-y-6">
@@ -145,22 +152,24 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
                 alt={R.imageAlt}
                 aspect={analysis.image.width / analysis.image.height}
                 showBoxes={tab !== 'original'}
-                heatmaps={tab === 'gradcam' ? cams : undefined}
+                heatmap={tab === 'gradcam' ? cam : null}
                 zoom={zoom}
                 activeIdx={activeIdx}
                 selectedIdx={selected}
                 focus={focus}
                 onHover={setHovered}
                 onSelect={toggleSelect}
-                getColor={lesionColor}
-                isLow={lesionLow}
-                getLabel={lesionLabel}
               />
             </div>
 
             <div className="px-4 py-3 text-body-sm text-ink-500 md:px-6">
               {tab === 'gradcam' ? (
-                camLoading ? <Spinner label={R.gradcamLoading} /> : <p>{R.gradcamNote}</p>
+                camLoading ? <Spinner label={R.gradcamLoading} /> : (
+                  <>
+                    <p>{R.gradcamNote}</p>
+                    <HeatmapKey />
+                  </>
+                )
               ) : tab === 'boxes' ? (
                 <p>{R.legend}</p>
               ) : null}
@@ -182,7 +191,7 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
               </h2>
               <div id={`${uid}-list-body`} className={listOpen ? 'mt-1' : 'hidden lg:mt-1 lg:block'}>
                 <p className="mb-2 text-body-sm text-ink-500">{R.listExplain}</p>
-                <ClassLesionList lesions={lesions} activeIdx={activeIdx} selectedIdx={selected} onHover={setHovered} onSelect={toggleSelect} />
+                <LesionList lesions={lesions} activeIdx={activeIdx} selectedIdx={selected} onHover={setHovered} onSelect={toggleSelect} />
               </div>
             </section>
         </div>
@@ -191,17 +200,25 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
         <div className="space-y-6 lg:top-20 lg:col-span-4 xl:col-span-1 lg:self-start lg:[@media(min-height:860px)]:sticky">
           <SeveritySummary {...summaryProps} className="hidden lg:block" />
 
-          <section className="card" aria-labelledby={`${uid}-dist`}>
-            <h2 id={`${uid}-dist`} className="mb-4 text-headline-sm">{R.distributionTitle}</h2>
-            <ClassDistribution classCounts={summary.class_counts} total={summary.total_lesions} />
-          </section>
+          {classification && (
+            <section className="card" aria-labelledby={`${uid}-prob`}>
+              <h2 id={`${uid}-prob`} className="text-headline-sm">{R.probabilitiesTitle}</h2>
+              <p className="mb-4 mt-1 text-body-sm text-ink-500">{R.probabilitiesNote}</p>
+              <ProbabilityBars probabilities={classification.probabilities} selected={classification.severity} />
+            </section>
+          )}
 
-          {/* One 3-column strip below lg; stacked rows in the narrow desktop column */}
-          <dl className="card grid grid-cols-3 divide-x divide-border !p-0 lg:grid-cols-1 lg:divide-x-0 lg:divide-y">
-            <Stat label={R.statAvgConfidence} value={pct(summary.avg_confidence)} />
-            <Stat label={R.statLowConfidence} value={String(summary.low_confidence_count)} />
+          {/* One strip below lg; stacked rows in the narrow desktop column */}
+          <dl className={`card grid divide-x divide-border !p-0 lg:grid-cols-1 lg:divide-x-0 lg:divide-y ${classification ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {classification && <Stat label={R.statSeverityConfidence} value={pct(classification.confidence)} />}
             <Stat label={R.statTime} value={R.timeValue(analysis.timing_ms.total)} />
           </dl>
+
+          {classification && analysis.model_info?.classification?.name && (
+            <p className="px-1 text-body-sm text-ink-500">
+              {R.modelLine(analysis.model_info.classification.name, analysis.model_info.classification.version)}
+            </p>
+          )}
         </div>
       </div>
 

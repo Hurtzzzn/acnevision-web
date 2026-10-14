@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
-import { CLASS_META, type ConversationItem, type ConversationMessages } from '@acnevision/shared';
+import type { ConversationItem, ConversationMessages } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, fmtDate } from '../lib/errors';
 import { useUi } from '../store/ui';
@@ -80,8 +80,7 @@ export default function Chat() {
               {summary && (
                 <div className="mb-3 flex flex-wrap items-center gap-3 rounded-btn bg-primary-50 p-3 text-sm">
                   <span>Scan terkait: <b>{summary.total_lesions}</b> lesi</span>
-                  {summary.dominant_class && <span>Dominan: <b>{CLASS_META[summary.dominant_class].label}</b></span>}
-                  <SeverityBadge severity={summary.severity} isEstimate={false} />
+                  {summary.severity && <SeverityBadge severity={summary.severity} isEstimate={false} />}
                 </div>
               )}
               <div className="flex-1 space-y-3 overflow-y-auto pr-1" style={{ maxHeight: '55vh' }}>

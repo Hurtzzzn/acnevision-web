@@ -3,12 +3,12 @@
  * Data lives in localStorage. Detection results are simulated and NOT real AI output.
  */
 import {
-  ACNE_CLASSES, ALLOWED_IMAGE_TYPES, LOW_CONFIDENCE_THRESHOLD, MAX_UPLOAD_BYTES, computeSeverity,
+  ALLOWED_IMAGE_TYPES, LOW_CONFIDENCE_THRESHOLD, MAX_UPLOAD_BYTES, SEVERITY_META, SEVERITY_ORDER, estimateSeverity,
 } from '../constants/classes';
 import { COPY } from '../constants/copy';
 import type {
-  AcneClass, AdminUser, AnalysisSummary, AnalyzeResponse, AuditLogItem, ChatMessage, ConversationItem,
-  DetectedLesion, DetectResponse, Lesion, Me, ModelStats, Paginated, ScanDetail, ScanListItem, UsageStats, UserRole, UserStatus,
+  AdminUser, AnalyzeResponse, AuditLogItem, ChatMessage, Classification, ConversationItem,
+  DetectedLesion, DetectResponse, Me, ModelStats, Paginated, ScanDetail, ScanListItem, Severity, UsageStats, UserRole, UserStatus,
 } from '../types/api';
 import { ApiRequestError, type AcneApi, type DateRange } from './types';
 import { buildUserStats } from './stats';
@@ -80,43 +80,14 @@ function rng(seed: number) {
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-function fakeAnalysis(file: File, w: number, h: number, isGuest: boolean): AnalyzeResponse {
-  const rand = rng(file.size + w * 31 + h);
-  const total = Math.floor(rand() * 16);
-  const weights: [AcneClass, number][] = [['Papules', 4], ['Blackheads', 3], ['Whiteheads', 3], ['Pustules', 2], ['Cyst', 0.6]];
-  const sum = weights.reduce((a, [, x]) => a + x, 0);
-  const lesions: Lesion[] = [];
-  for (let i = 0; i < total; i++) {
-    let pick = rand() * sum;
-    let cls: AcneClass = 'Papules';
-    for (const [c, x] of weights) { if ((pick -= x) <= 0) { cls = c; break; } }
-    const cx = 0.25 + rand() * 0.5, cy = 0.25 + rand() * 0.55, size = 0.03 + rand() * 0.035;
-    const conf = 0.5 + rand() * 0.49;
-    const rest = (1 - conf) / 4;
-    const probabilities = Object.fromEntries(ACNE_CLASSES.map((c) => [c, c === cls ? conf : rest])) as Record<AcneClass, number>;
-    lesions.push({
-      idx: i,
-      bbox: { x1: cx - size, y1: cy - size, x2: cx + size, y2: cy + size },
-      det_confidence: 0.6 + rand() * 0.39,
-      predicted_class: cls,
-      class_confidence: conf,
-      probabilities,
-      is_low_confidence: conf < LOW_CONFIDENCE_THRESHOLD,
-      gradcam_png_base64: null,
-    });
-  }
-  return {
-    analysis_id: uid(), is_guest: isGuest, image: { width: w, height: h }, lesions,
-    summary: summarize(lesions),
-    timing_ms: { detection: 150 + Math.floor(rand() * 80), classification: 200 + Math.floor(rand() * 100), total: 400 + Math.floor(rand() * 200) },
-    model_versions: { detection: 'mock-1.0.0', classification: 'mock-1.0.0' },
-    disclaimer: COPY.disclaimer,
-  };
-}
+// Generic names on purpose: the mock must never claim a real model. The real backend sends its own `model_info`.
+const MOCK_MODEL_INFO = {
+  detection: { name: 'Model deteksi (mode demo)', version: 'mock-1.0.0' },
+  classification: { name: 'Model klasifikasi (mode demo)', version: 'mock-1.0.0' },
+};
 
-/** Guest path: boxes and counts only. Deliberately builds no class, probability, or Grad-CAM data. */
-function fakeDetection(file: File, w: number, h: number, isGuest: boolean): DetectResponse {
-  const rand = rng(file.size + w * 31 + h);
+/** Simulated detector: the same photo always gives the same boxes, so guests and signed-in users see the same count. */
+function fakeLesions(w: number, h: number, rand: () => number): DetectedLesion[] {
   const total = Math.floor(rand() * 16);
   const lesions: DetectedLesion[] = [];
   // Simulated face area: an ellipse in the middle of the frame (not the whole image).
@@ -136,50 +107,81 @@ function fakeDetection(file: File, w: number, h: number, isGuest: boolean): Dete
       label: COPY.detect.lesionLabel,
     });
   }
+  return lesions;
+}
+
+/**
+ * Simulated classifier for the whole photo. It leans on the lesion count but sometimes lands a few levels away, so the
+ * "count and severity do not line up" note can be seen in demo mode. Not real AI output.
+ */
+function fakeClassification(total: number, rand: () => number): Classification {
+  const base = SEVERITY_ORDER.indexOf(estimateSeverity(total) ?? 'mild');
+  const roll = rand();
+  const shift = roll < 0.55 ? 0 : roll < 0.75 ? 1 : roll < 0.9 ? 2 : -1;
+  const picked = Math.min(SEVERITY_ORDER.length - 1, Math.max(0, base + shift));
+  const confidence = 0.45 + rand() * 0.5;
+  // The rest of the probability mass favors levels next to the picked one.
+  const others = SEVERITY_ORDER.map((_, i) => (i === picked ? 0 : 1 / (1 + Math.abs(i - picked))));
+  const othersSum = others.reduce((a, x) => a + x, 0);
+  const probabilities = Object.fromEntries(
+    SEVERITY_ORDER.map((s, i) => [s, i === picked ? confidence : ((1 - confidence) * others[i]) / othersSum]),
+  ) as Record<Severity, number>;
+  return {
+    severity: SEVERITY_ORDER[picked], confidence, probabilities,
+    is_low_confidence: confidence < LOW_CONFIDENCE_THRESHOLD,
+    gradcam_png_base64: null,
+  };
+}
+
+function fakeAnalysis(file: File, w: number, h: number): AnalyzeResponse {
+  const rand = rng(file.size + w * 31 + h);
+  const lesions = fakeLesions(w, h, rand);
+  const total = lesions.length;
+  return {
+    analysis_id: uid(), is_guest: false, image: { width: w, height: h }, lesions,
+    summary: { total_lesions: total },
+    // No lesions: the classifier is not run, so there is no severity at all.
+    classification: total === 0 ? null : fakeClassification(total, rand),
+    timing_ms: {
+      detection: 150 + Math.floor(rand() * 80),
+      classification: total === 0 ? 0 : 200 + Math.floor(rand() * 100),
+      total: 400 + Math.floor(rand() * 200),
+    },
+    model_info: MOCK_MODEL_INFO,
+    disclaimer: COPY.disclaimer,
+  };
+}
+
+/** Guest path: boxes, counts, and the Hayashi estimate only. Deliberately builds no classification, probability, or Grad-CAM data. */
+function fakeDetection(file: File, w: number, h: number, isGuest: boolean): DetectResponse {
+  const rand = rng(file.size + w * 31 + h);
+  const lesions = fakeLesions(w, h, rand);
+  const total = lesions.length;
   return {
     detection_id: uid(), is_guest: isGuest, image: { width: w, height: h }, lesions,
-    summary: { total_lesions: total, severity: computeSeverity(total, false), severity_is_estimate: true },
+    summary: { total_lesions: total, severity: estimateSeverity(total), severity_is_estimate: true },
     timing_ms: { detection: 150 + Math.floor(rand() * 80) },
-    model_version: 'mock-1.0.0',
+    model_info: { detection: MOCK_MODEL_INFO.detection },
     disclaimer: COPY.disclaimer,
     advice: COPY.detect.advice,
     upgrade: { message: COPY.detect.upgradeMessage, unlocks: [...COPY.detect.upgradeUnlocks] },
   };
 }
 
-function summarize(lesions: Lesion[]): AnalysisSummary {
-  const counts = Object.fromEntries(ACNE_CLASSES.map((c) => [c, 0])) as Record<AcneClass, number>;
-  lesions.forEach((l) => { counts[l.predicted_class]++; });
-  let dominant: AcneClass | null = null;
-  ACNE_CLASSES.forEach((c) => { if (counts[c] > 0 && (dominant === null || counts[c] > counts[dominant])) dominant = c; });
-  const hasCyst = lesions.some((l) => l.predicted_class === 'Cyst' && l.class_confidence >= LOW_CONFIDENCE_THRESHOLD);
-  return {
-    total_lesions: lesions.length,
-    class_counts: counts,
-    dominant_class: dominant,
-    avg_confidence: lesions.length ? lesions.reduce((a, l) => a + l.class_confidence, 0) / lesions.length : null,
-    low_confidence_count: lesions.filter((l) => l.is_low_confidence).length,
-    severity: computeSeverity(lesions.length, hasCyst),
-    severity_is_estimate: true,
-  };
-}
-
-const TIPS: Record<AcneClass, string> = {
-  Blackheads: 'Komedo hitam (Blackheads) terjadi saat pori tersumbat minyak dan teroksidasi. Bersihkan wajah 2x sehari dengan pembersih lembut, dan pertimbangkan produk berbahan salicylic acid (BHA) 2-3 kali seminggu.',
-  Whiteheads: 'Komedo putih (Whiteheads) adalah pori tersumbat yang tertutup. Gunakan pelembap non-komedogenik dan eksfoliasi lembut. Hindari memencet agar tidak meradang.',
-  Papules: 'Papula adalah benjolan merah kecil tanpa nanah. Jangan dipencet. Bahan seperti benzoyl peroxide konsentrasi rendah atau niacinamide dapat membantu menenangkan peradangan.',
-  Pustules: 'Pustula adalah jerawat meradang berisi nanah. Jangan dipencet karena berisiko meninggalkan bekas. Gunakan spot treatment lembut dan jaga kebersihan sarung bantal.',
-  Cyst: 'Kista adalah jerawat dalam dan nyeri yang berisiko meninggalkan bekas. Sebaiknya segera konsultasikan ke dokter kulit untuk penanganan yang tepat.',
+const TIPS: Record<Severity, string> = {
+  mild: 'Rutinitas sederhana biasanya sudah cukup: bersihkan wajah dua kali sehari dengan pembersih lembut, pakai pelembap non-komedogenik, dan tabir surya setiap pagi. Hindari memencet jerawat agar tidak meradang.',
+  moderate: 'Selain rutinitas dasar (pembersih lembut, pelembap non-komedogenik, tabir surya), bahan seperti salicylic acid atau benzoyl peroxide konsentrasi rendah sering dipakai. Mulai pelan-pelan, dan jangan memencet jerawat. Bila tidak membaik setelah beberapa minggu, konsultasikan ke dokter kulit.',
+  severe: 'Sebaiknya konsultasikan ke dokter kulit supaya langkah perawatannya sesuai dengan kondisi kulitmu. Sambil menunggu, jaga rutinitas yang lembut, hindari scrub kasar, dan jangan memencet jerawat.',
+  very_severe: 'Kami menyarankan kamu berkonsultasi dengan dokter kulit dalam waktu dekat untuk penanganan yang tepat. Sambil menunggu, jaga rutinitas yang lembut dan jangan memencet jerawat.',
 };
 
-function recommendationFor(s: AnalysisSummary): string {
-  if (s.total_lesions === 0 || !s.dominant_class) {
-    return 'Kulitmu terlihat bersih pada foto ini. Pertahankan rutinitas sederhana: pembersih lembut, pelembap, dan tabir surya setiap pagi.';
+function recommendationFor(result: AnalyzeResponse): string {
+  const cls = result.classification;
+  if (result.summary.total_lesions === 0 || !cls) {
+    return 'AI tidak menemukan jerawat pada foto ini. Hasil bisa meleset bila cahaya atau sudut foto kurang pas, jadi coba foto ulang dengan pencahayaan lebih terang bila kamu masih ragu. Tetap jaga rutinitas sederhana: pembersih lembut, pelembap, dan tabir surya setiap pagi.';
   }
-  const extra = s.class_counts.Cyst > 0 || s.severity === 'severe'
-    ? '\n\nKarena terdapat kista atau jumlah lesi yang cukup banyak, kami menyarankan konsultasi ke dokter kulit.'
-    : '';
-  return `Berdasarkan hasil analisis, terdeteksi ${s.total_lesions} lesi dengan jenis terbanyak ${s.dominant_class}. ${TIPS[s.dominant_class]}${extra}`;
+  const level = SEVERITY_META[cls.severity].label.toLowerCase();
+  return `Berdasarkan hasil analisis AI, tingkat keparahan jerawat kamu diperkirakan ${level}, dengan ${result.summary.total_lesions} jerawat terdeteksi. ${TIPS[cls.severity]}`;
 }
 
 function chatReply(question: string, ctx: StoredScan | null): string {
@@ -194,8 +196,8 @@ function chatReply(question: string, ctx: StoredScan | null): string {
   if (q.includes('niacinamide')) return 'Niacinamide 2-5% membantu mengontrol minyak dan menenangkan kemerahan, aman dikombinasikan dengan banyak bahan lain.';
   if (/(sunscreen|tabir)/.test(q)) return 'Tabir surya non-komedogenik SPF 30+ dianjurkan setiap pagi, termasuk saat berjerawat, karena sinar UV dapat memperburuk bekas jerawat.';
   if (/(bekas)/.test(q)) return 'Bekas jerawat biasanya membaik dengan perlindungan matahari dan bahan seperti niacinamide atau azelaic acid. Bekas yang dalam sebaiknya dikonsultasikan ke dokter kulit.';
-  const dom = ctx?.detail.summary.dominant_class;
-  return `Secara umum, jaga rutinitas sederhana: pembersih lembut, pelembap non-komedogenik, dan tabir surya.${dom ? ` Untuk ${dom} yang terdeteksi pada scan kamu, hindari memencet lesi.` : ''} Jika tidak membaik dalam 4-6 minggu, konsultasikan ke dokter kulit.`;
+  const severity = ctx?.detail.classification?.severity;
+  return `Secara umum, jaga rutinitas sederhana: pembersih lembut, pelembap non-komedogenik, dan tabir surya.${severity ? ` Untuk tingkat keparahan ${SEVERITY_META[severity].label.toLowerCase()} pada scan kamu, hindari memencet jerawat.` : ''} Jika tidak membaik dalam 4-6 minggu, konsultasikan ke dokter kulit.`;
 }
 
 // ---------- backend ----------
@@ -278,8 +280,9 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
   const asMe = (u: StoredUser) => publicUser(u);
   const scanItem = (s: StoredScan): ScanListItem => ({
     scan_id: s.detail.scan_id, created_at: s.detail.created_at, thumbnail_url: s.thumb,
-    total_lesions: s.detail.summary.total_lesions, dominant_class: s.detail.summary.dominant_class,
-    severity: s.detail.summary.severity, avg_confidence: s.detail.summary.avg_confidence,
+    total_lesions: s.detail.summary.total_lesions,
+    severity: s.detail.classification?.severity ?? null,
+    severity_confidence: s.detail.classification?.confidence ?? null,
   });
 
   function series(range: DateRange, fn: (i: number, r: () => number, period: string) => object) {
@@ -302,23 +305,36 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       return fakeDetection(image, img.w, img.h, !session());
     },
     async analyze(image) {
+      // The real /analyze answers 401 without a token, so the mock does too (docs/05).
+      requireUser();
       if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(image.type)) throw new ApiRequestError('INVALID_IMAGE', 'File harus berupa gambar JPEG, PNG, atau WEBP.', 400);
       if (image.size > MAX_UPLOAD_BYTES) throw new ApiRequestError('FILE_TOO_LARGE', 'Ukuran file maksimal 10 MB.', 413);
       const [img] = await Promise.all([readImage(image), sleep(1200)]);
-      const user = session();
-      const result = fakeAnalysis(image, img.w, img.h, !user);
+      const result = fakeAnalysis(image, img.w, img.h);
       analyses.set(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });
-      if (user) rememberPending(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });
+      rememberPending(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });
       return result;
     },
-    async getGradcam() {
+    async getGradcam(analysisId) {
       await sleep(300);
+      // One simulated heatmap for the whole photo: a wide blob on the face plus a soft one over each detected lesion.
+      // Colors run from low influence (blue, transparent) to high (red), the same ramp as the key under the photo.
+      const known = findPending(analysisId)?.result ?? scans().find((s) => s.detail.analysis_id === analysisId)?.detail;
+      const SIZE = 256;
       const c = document.createElement('canvas');
-      c.width = c.height = 64;
+      c.width = c.height = SIZE;
       const g = c.getContext('2d')!;
-      const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32);
-      grad.addColorStop(0, 'rgba(220,38,38,0.85)'); grad.addColorStop(1, 'rgba(37,99,235,0)');
-      g.fillStyle = grad; g.fillRect(0, 0, 64, 64);
+      const blob = (cx: number, cy: number, r: number, strength: number) => {
+        const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+        grad.addColorStop(0, `rgba(220,38,38,${0.85 * strength})`);
+        grad.addColorStop(0.5, `rgba(250,204,21,${0.55 * strength})`);
+        grad.addColorStop(1, 'rgba(37,99,235,0)');
+        g.fillStyle = grad; g.fillRect(0, 0, SIZE, SIZE);
+      };
+      blob(0.5 * SIZE, 0.5 * SIZE, 0.34 * SIZE, 0.6);
+      (known?.lesions ?? []).slice(0, 8).forEach((l) => {
+        blob(((l.bbox.x1 + l.bbox.x2) / 2) * SIZE, ((l.bbox.y1 + l.bbox.y2) / 2) * SIZE, 0.12 * SIZE, 1);
+      });
       return c.toDataURL('image/png').split(',')[1];
     },
 
@@ -329,7 +345,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const all = scans();
       if (all.some((s) => s.detail.scan_id === analysisId)) throw new ApiRequestError('ALREADY_SAVED', 'Hasil sudah tersimpan.', 409);
       const saved_at = now();
-      const detail: ScanDetail = { ...a.result, is_guest: false, scan_id: analysisId, image_url: a.image, created_at: saved_at, recommendation: recommendationFor(a.result.summary), conversation_id: null };
+      const detail: ScanDetail = { ...a.result, is_guest: false, scan_id: analysisId, image_url: a.image, created_at: saved_at, recommendation: recommendationFor(a.result), conversation_id: null };
       save(K.scans, [{ detail, thumb: a.thumb, user_id: user.id }, ...all]);
       return { scan_id: analysisId, saved_at };
     },
@@ -347,7 +363,8 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const user = requireUser();
       const mine = scans().filter((s) => s.user_id === user.id);
       return buildUserStats(mine.map((s) => ({
-        scan_id: s.detail.scan_id, created_at: s.detail.created_at, thumbnail_url: s.thumb, summary: s.detail.summary,
+        scan_id: s.detail.scan_id, created_at: s.detail.created_at, thumbnail_url: s.thumb,
+        total_lesions: s.detail.summary.total_lesions, severity: s.detail.classification?.severity ?? null,
       })));
     },
     async deleteScan(id) {
@@ -358,7 +375,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
     async scanTrend(limit = 20) {
       const user = requireUser();
       const pts = scans().filter((s) => s.user_id === user.id).slice(0, limit).reverse()
-        .map((s) => ({ created_at: s.detail.created_at, total_lesions: s.detail.summary.total_lesions, severity: s.detail.summary.severity }));
+        .map((s) => ({ created_at: s.detail.created_at, total_lesions: s.detail.summary.total_lesions, severity: s.detail.classification?.severity ?? null }));
       return { points: pts };
     },
 
@@ -369,7 +386,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const saved = scans().find((s) => s.detail.scan_id === analysisId);
       const result = a?.result ?? saved?.detail;
       if (!result) throw new ApiRequestError('NOT_FOUND', 'Analisis tidak ditemukan atau sudah kedaluwarsa.', 404);
-      const text = recommendationFor(result.summary);
+      const text = recommendationFor(result);
       let conversation_id: string | null = null;
       if (user) {
         const all = convs();
@@ -409,7 +426,7 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const s = c.scan_id ? scans().find((x) => x.detail.scan_id === c.scan_id) : null;
       return {
         conversation_id: id,
-        scan_summary: s ? { total_lesions: s.detail.summary.total_lesions, dominant_class: s.detail.summary.dominant_class, severity: s.detail.summary.severity } : null,
+        scan_summary: s ? { total_lesions: s.detail.summary.total_lesions, severity: s.detail.classification?.severity ?? null } : null,
         messages: c.messages,
       };
     },
@@ -466,11 +483,12 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       }) as ModelStats['series'];
       return {
         active_models: {
-          detection: { name: 'YOLO (Tim 1) [mock]', version: 'mock-1.0.0' },
-          classification: { name: 'MobileNetV4-Hybrid-Medium [mock]', version: 'mock-1.0.0', metrics: { test_accuracy: 0.9912 } },
+          detection: { ...MOCK_MODEL_INFO.detection },
+          // Placeholder numbers so the metric row can be seen in demo mode. They describe no real model.
+          classification: { ...MOCK_MODEL_INFO.classification, metrics: { macro_f1: 0.78, accuracy: 0.8 } },
         },
         summary: { requests: 1520, avg_total_ms: 540, p95_total_ms: 1100, error_rate: 0.004, no_lesion_rate: 0.12, low_confidence_rate: 0.07 },
-        class_distribution: ACNE_CLASSES.map((c, i) => ({ class: c, lesion_count: [1800, 260, 4200, 1500, 2100][i], avg_confidence: [0.88, 0.81, 0.89, 0.86, 0.87][i], low_conf_rate: [0.05, 0.12, 0.05, 0.07, 0.06][i] })),
+        severity_distribution: SEVERITY_ORDER.map((severity, i) => ({ severity, scan_count: [610, 540, 260, 50][i], avg_confidence: [0.86, 0.8, 0.77, 0.7][i], low_conf_rate: [0.04, 0.07, 0.1, 0.18][i] })),
         series: s,
       };
     },

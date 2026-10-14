@@ -8,10 +8,11 @@ export interface DateRange { from: string; to: string; granularity: Granularity 
 
 /** Contract implemented by both the HTTP client and the offline mock (docs/05_API_SPEC.md). */
 export interface AcneApi {
-  /** Guest-safe detection: boxes and counts only, no class information. */
+  /** Guest-safe detection: boxes, counts, and a severity estimate from the count. No classification. */
   detect(image: File, opts?: DetectOptions): Promise<DetectResponse>;
   analyze(image: File, opts?: AnalyzeOptions): Promise<AnalyzeResponse>;
-  getGradcam(analysisId: string, lesionIdx: number): Promise<string>;
+  /** One heatmap (base64 PNG) for the whole photo. */
+  getGradcam(analysisId: string): Promise<string>;
 
   saveScan(analysisId: string): Promise<{ scan_id: string; saved_at: string }>;
   listScans(page?: number, pageSize?: number): Promise<Paginated<ScanListItem>>;

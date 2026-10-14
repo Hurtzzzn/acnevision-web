@@ -1,62 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import { ACNE_CLASSES, buildUserStats, type AcneClass, type AnalysisSummary, type UserStats } from '@acnevision/shared';
-import type { StatsSource } from '@acnevision/shared';
+import { buildUserStats, type Severity, type StatsSource, type UserStats } from '@acnevision/shared';
 import { chronological, firstName, formatDelta, greetingKey, lesionTrend } from './dashboard';
 
 type Recent = UserStats['recent'][number];
 
-function scan(id: string, date: string, counts: Partial<Record<AcneClass, number>>, avgConfidence: number | null = 0.9): StatsSource {
-  const class_counts = Object.fromEntries(ACNE_CLASSES.map((c) => [c, counts[c] ?? 0])) as Record<AcneClass, number>;
-  const total = Object.values(class_counts).reduce((a, b) => a + b, 0);
-  const summary: AnalysisSummary = {
-    total_lesions: total, class_counts, dominant_class: null, avg_confidence: avgConfidence,
-    low_confidence_count: 0, severity: total === 0 ? 'clear' : 'mild', severity_is_estimate: true,
-  };
-  return { scan_id: id, created_at: date, thumbnail_url: `thumb-${id}`, summary };
+function scan(id: string, date: string, total: number, severity: Severity | null = total === 0 ? null : 'mild'): StatsSource {
+  return { scan_id: id, created_at: date, thumbnail_url: `thumb-${id}`, total_lesions: total, severity };
 }
 
 const recent = (id: string, date: string, total: number): Recent => ({
-  scan_id: id, created_at: date, thumbnail_url: '', total_lesions: total, classes_present: [], severity: 'mild',
+  scan_id: id, created_at: date, thumbnail_url: '', total_lesions: total, severity: 'mild',
 });
 
 describe('buildUserStats', () => {
   it('returns zeros and nulls for a user without scans', () => {
     expect(buildUserStats([])).toEqual({
-      totals: { analyses: 0, total_lesions: 0, most_detected_class: null, avg_confidence: null },
+      totals: { analyses: 0, total_lesions: 0, latest_severity: null },
       recent: [],
     });
   });
 
-  it('sums lesions, counts analyses and finds the most detected class', () => {
+  it('sums lesions, counts analyses and takes the severity of the newest scan', () => {
     const stats = buildUserStats([
-      scan('a', '2026-09-01T10:00:00Z', { Papules: 3, Blackheads: 1 }),
-      scan('b', '2026-09-10T10:00:00Z', { Papules: 2, Cyst: 1 }),
+      scan('a', '2026-09-01T10:00:00Z', 4, 'mild'),
+      scan('b', '2026-09-10T10:00:00Z', 3, 'severe'),
     ]);
     expect(stats.totals.analyses).toBe(2);
     expect(stats.totals.total_lesions).toBe(7);
-    expect(stats.totals.most_detected_class).toBe('Papules');
+    expect(stats.totals.latest_severity).toBe('severe');
   });
 
-  it('weights average confidence by lesion count and ignores scans with none', () => {
-    const stats = buildUserStats([
-      scan('a', '2026-09-01T10:00:00Z', { Papules: 1 }, 0.5),
-      scan('b', '2026-09-02T10:00:00Z', { Papules: 3 }, 0.9),
-      scan('c', '2026-09-03T10:00:00Z', {}, null),
-    ]);
-    expect(stats.totals.avg_confidence).toBeCloseTo((0.5 * 1 + 0.9 * 3) / 4);
+  it('has no latest severity when the newest scan found no lesions', () => {
+    const stats = buildUserStats([scan('a', '2026-09-01T10:00:00Z', 4, 'moderate'), scan('b', '2026-09-02T10:00:00Z', 0)]);
+    expect(stats.totals.latest_severity).toBeNull();
+    expect(stats.recent[0].severity).toBeNull();
   });
 
-  it('lists recent scans newest first, capped at the limit, with canonical class order', () => {
-    const scans = Array.from({ length: 7 }, (_, i) => scan(`s${i}`, `2026-09-0${i + 1}T10:00:00Z`, { Pustules: 1, Blackheads: 1 }));
+  it('lists recent scans newest first, capped at the limit, and carries no class fields', () => {
+    const scans = Array.from({ length: 7 }, (_, i) => scan(`s${i}`, `2026-09-0${i + 1}T10:00:00Z`, 2));
     const stats = buildUserStats(scans);
     expect(stats.recent).toHaveLength(5);
     expect(stats.recent[0].scan_id).toBe('s6');
-    expect(stats.recent[0].classes_present).toEqual(['Blackheads', 'Pustules']);
+    expect(Object.keys(stats.recent[0]).sort()).toEqual(['created_at', 'scan_id', 'severity', 'thumbnail_url', 'total_lesions']);
     expect(stats.totals.analyses).toBe(7);
   });
 
   it('does not mutate its input', () => {
-    const scans = [scan('a', '2026-09-01T10:00:00Z', { Cyst: 1 }), scan('b', '2026-09-02T10:00:00Z', { Cyst: 1 })];
+    const scans = [scan('a', '2026-09-01T10:00:00Z', 1), scan('b', '2026-09-02T10:00:00Z', 1)];
     buildUserStats(scans);
     expect(scans.map((s) => s.scan_id)).toEqual(['a', 'b']);
   });

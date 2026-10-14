@@ -108,7 +108,7 @@ export default function Result() {
               text={recommendation?.recommendation ?? null}
               isFallback={recommendation?.is_fallback}
               loading={recLoading}
-              severity={analysis.summary.severity}
+              severity={analysis.classification?.severity ?? null}
             />
             <ChatPanel
               conversationId={recommendation?.conversation_id ?? null}

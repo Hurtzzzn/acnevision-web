@@ -1,9 +1,9 @@
 import { Lock } from 'lucide-react';
-import { ACNE_CLASSES, COPY } from '@acnevision/shared';
+import { COPY, SEVERITY_META, SEVERITY_ORDER } from '@acnevision/shared';
 
 /**
  * Static teaser of what opens after login. Everything here is generic: the heat map is a hand-drawn SVG (never
- * derived from the guest's photo) and the five type names are the fixed class list, not results for this photo.
+ * derived from the guest's photo) and the four severity names are the fixed list, not a result for this photo.
  * Decorative only, so it is hidden from assistive tech; the unlock list next to it carries the same information.
  */
 export function LockedPreview() {
@@ -36,9 +36,9 @@ export function LockedPreview() {
       </div>
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
-        {ACNE_CLASSES.map((c) => (
-          <li key={c} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-label-sm text-ink-500">
-            <Lock className="h-3 w-3" /> {c}
+        {SEVERITY_ORDER.map((s) => (
+          <li key={s} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-label-sm text-ink-500">
+            <Lock className="h-3 w-3" /> {SEVERITY_META[s].label}
           </li>
         ))}
       </ul>

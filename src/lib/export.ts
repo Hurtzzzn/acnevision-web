@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { CLASS_META, COPY, SEVERITY_META, type AcneClass, type AnalyzeResponse, type DetectResponse } from '@acnevision/shared';
+import { COPY, SEVERITY_META, SEVERITY_ORDER, type AnalyzeResponse, type DetectResponse } from '@acnevision/shared';
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -10,7 +10,25 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/** Draw the photo with bounding boxes onto a canvas (max side 1280px). */
+const BOX_COLOR = '#2563EB';
+
+/** Neutral box plus a numbered chip per lesion, the same look as on screen. No class names or colors. */
+function drawNumberedBoxes(g: CanvasRenderingContext2D, lesions: AnalyzeResponse['lesions'], W: number, H: number, font: number) {
+  g.font = `600 ${font}px Inter, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const r = font * 0.85;
+  for (const l of lesions) {
+    const x = l.bbox.x1 * W, y = l.bbox.y1 * H;
+    g.strokeStyle = BOX_COLOR; g.lineWidth = 2;
+    g.strokeRect(x, y, (l.bbox.x2 - l.bbox.x1) * W, (l.bbox.y2 - l.bbox.y1) * H);
+    const cx = Math.min(W - r, Math.max(r, x + r)), cy = Math.max(r, y - r - 2);
+    g.fillStyle = BOX_COLOR;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff'; g.fillText(String(l.idx + 1), cx, cy + 1);
+  }
+}
+
+/** Draw the photo with numbered neutral boxes onto a canvas (max side 1280px). */
 export async function renderAnnotatedCanvas(src: string, analysis: AnalyzeResponse): Promise<HTMLCanvasElement> {
   const img = await loadImage(src);
   const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
@@ -19,20 +37,7 @@ export async function renderAnnotatedCanvas(src: string, analysis: AnalyzeRespon
   c.height = Math.round(img.height * scale);
   const g = c.getContext('2d')!;
   g.drawImage(img, 0, 0, c.width, c.height);
-  g.font = `${Math.max(11, c.width / 60)}px Inter, sans-serif`;
-  for (const l of analysis.lesions) {
-    const color = CLASS_META[l.predicted_class].color;
-    const x = l.bbox.x1 * c.width, y = l.bbox.y1 * c.height;
-    const w = (l.bbox.x2 - l.bbox.x1) * c.width, h = (l.bbox.y2 - l.bbox.y1) * c.height;
-    g.strokeStyle = color; g.lineWidth = 2;
-    g.setLineDash(l.is_low_confidence ? [5, 4] : []);
-    g.strokeRect(x, y, w, h);
-    const label = `${CLASS_META[l.predicted_class].label} ${Math.round(l.class_confidence * 100)}%`;
-    const tw = g.measureText(label).width + 6;
-    g.setLineDash([]);
-    g.fillStyle = color; g.fillRect(x, y - 16, tw, 16);
-    g.fillStyle = '#fff'; g.fillText(label, x + 3, y - 4);
-  }
+  drawNumberedBoxes(g, analysis.lesions, c.width, c.height, Math.max(12, c.width / 55));
   return c;
 }
 
@@ -47,7 +52,7 @@ export async function downloadPng(src: string, analysis: AnalyzeResponse) {
   download(c.toDataURL('image/png'), 'acnevision-hasil.png');
 }
 
-/** Guest detection image: neutral boxes numbered 1..n plus a footer strip with the count. No class information. */
+/** Guest detection image: neutral boxes numbered 1..n plus a footer strip with the count. No classification. */
 export async function downloadDetectionPng(src: string, detection: DetectResponse) {
   const img = await loadImage(src);
   const scale = Math.min(1, 1280 / Math.max(img.width, img.height));
@@ -58,18 +63,7 @@ export async function downloadDetectionPng(src: string, detection: DetectRespons
   c.width = W; c.height = H + footer;
   const g = c.getContext('2d')!;
   g.drawImage(img, 0, 0, W, H);
-  g.font = `600 ${font}px Inter, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  const r = font * 0.85;
-  for (const l of detection.lesions) {
-    const x = l.bbox.x1 * W, y = l.bbox.y1 * H;
-    g.strokeStyle = '#2563EB'; g.lineWidth = 2;
-    g.strokeRect(x, y, (l.bbox.x2 - l.bbox.x1) * W, (l.bbox.y2 - l.bbox.y1) * H);
-    const cx = Math.min(W - r, Math.max(r, x + r)), cy = Math.max(r, y - r - 2);
-    g.fillStyle = '#2563EB';
-    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#fff'; g.fillText(String(l.idx + 1), cx, cy + 1);
-  }
+  drawNumberedBoxes(g, detection.lesions, W, H, font);
   g.fillStyle = '#EFF6FF'; g.fillRect(0, H, W, footer);
   g.fillStyle = '#1E40AF'; g.textAlign = 'left';
   g.fillText(`${detection.summary.total_lesions} ${COPY.detectResult.countUnit} · ${COPY.appName}`, font, H + footer / 2);
@@ -86,16 +80,22 @@ export async function downloadPdf(src: string, analysis: AnalyzeResponse) {
   const maxW = 90, ratio = c.height / c.width, imgH = Math.min(120, maxW * ratio), imgW = imgH / ratio;
   doc.addImage(c.toDataURL('image/jpeg', 0.85), 'JPEG', 15, y, imgW, imgH);
 
-  const s = analysis.summary;
+  const cls = analysis.classification;
   let ty = y + 4;
   doc.setTextColor(0); doc.setFontSize(11);
   const rows: string[] = [
-    `Total lesi: ${s.total_lesions}`,
-    `Estimasi keparahan: ${SEVERITY_META[s.severity].label}`,
-    `Rata-rata keyakinan: ${s.avg_confidence == null ? '-' : Math.round(s.avg_confidence * 100) + '%'}`,
+    `Total lesi (hasil deteksi): ${analysis.summary.total_lesions}`,
+    // No lesions means no severity: say so plainly instead of printing a level.
+    ...(cls
+      ? [
+        `Tingkat keparahan (analisis AI): ${SEVERITY_META[cls.severity].label}`,
+        `Keyakinan tingkat keparahan: ${Math.round(cls.confidence * 100)}%`,
+      ]
+      : [COPY.result.emptyTitle]),
     `Waktu analisis: ${analysis.timing_ms.total} ms`,
-    '',
-    ...(Object.keys(CLASS_META) as AcneClass[]).map((k) => `${CLASS_META[k].label}: ${s.class_counts[k]}`),
+    ...(cls
+      ? ['', 'Probabilitas tingkat keparahan:', ...SEVERITY_ORDER.map((k) => `${SEVERITY_META[k].label}: ${Math.round((cls.probabilities[k] ?? 0) * 100)}%`)]
+      : []),
   ];
   for (const r of rows) { doc.text(r, 15 + imgW + 8, ty); ty += 6; }
 

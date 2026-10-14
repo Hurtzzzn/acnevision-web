@@ -1,9 +1,11 @@
-export type AcneClass = 'Blackheads' | 'Cyst' | 'Papules' | 'Pustules' | 'Whiteheads';
-export type Severity = 'clear' | 'mild' | 'moderate' | 'severe';
+/** Fixed order, never re-sort. Without lesions there is no severity (null), never a "clear" level. */
+export type Severity = 'mild' | 'moderate' | 'severe' | 'very_severe';
+
+export interface ModelInfoEntry { name: string; version: string }
 
 export interface BBox { x1: number; y1: number; x2: number; y2: number }
 
-/** Detection only (guest path, POST /detect). Never carries class information (FR-SCAN-16). */
+/** Detector output only. A lesion never carries class information. */
 export interface DetectedLesion {
   idx: number;
   bbox: BBox;
@@ -11,12 +13,17 @@ export interface DetectedLesion {
   label: 'Jerawat';
 }
 
+/** Lesions come from the detector alone (boxes and count); the classifier never contributes to them. */
+export type Lesion = DetectedLesion;
+
 export interface DetectSummary {
   total_lesions: number;
-  severity: Severity;
-  severity_is_estimate: boolean;
+  /** Estimate from the lesion count (Hayashi). null when total_lesions is 0. */
+  severity: Severity | null;
+  severity_is_estimate: true;
 }
 
+/** Guest path, POST /detect. Never carries classification, probabilities, or Grad-CAM (FR-SCAN-16). */
 export interface DetectResponse {
   detection_id: string;
   is_guest: boolean;
@@ -24,41 +31,32 @@ export interface DetectResponse {
   lesions: DetectedLesion[];
   summary: DetectSummary;
   timing_ms: { detection: number };
-  model_version: string;
+  model_info: { detection: ModelInfoEntry };
   disclaimer: string;
   advice: string;
   upgrade: { message: string; unlocks: string[] } | null;
 }
 
-export interface Lesion {
-  idx: number;
-  bbox: BBox;
-  det_confidence: number;
-  predicted_class: AcneClass;
-  class_confidence: number;
-  probabilities: Record<AcneClass, number>;
-  is_low_confidence: boolean;
-  gradcam_png_base64?: string | null;
-}
-
-export interface AnalysisSummary {
-  total_lesions: number;
-  class_counts: Record<AcneClass, number>;
-  dominant_class: AcneClass | null;
-  avg_confidence: number | null;
-  low_confidence_count: number;
+/** Severity of the whole photo from the AI model (signed-in users only). */
+export interface Classification {
   severity: Severity;
-  severity_is_estimate: boolean;
+  confidence: number;
+  probabilities: Record<Severity, number>;
+  is_low_confidence: boolean;
+  /** One heatmap for the whole photo. */
+  gradcam_png_base64?: string | null;
 }
 
 export interface AnalyzeResponse {
   analysis_id: string;
-  is_guest: boolean;
+  is_guest: false;
   image: { width: number; height: number };
   lesions: Lesion[];
-  summary: AnalysisSummary;
+  summary: { total_lesions: number };
+  /** null when there are no lesions: the classifier is not run. */
+  classification: Classification | null;
   timing_ms: { detection: number; classification: number; total: number };
-  model_versions: { detection: string; classification: string };
+  model_info: { detection: ModelInfoEntry; classification: ModelInfoEntry };
   disclaimer: string;
 }
 
@@ -100,9 +98,9 @@ export interface ScanListItem {
   created_at: string;
   thumbnail_url: string | null;
   total_lesions: number;
-  dominant_class: AcneClass | null;
-  severity: Severity;
-  avg_confidence: number | null;
+  /** Severity from the AI model. null for a scan without lesions. */
+  severity: Severity | null;
+  severity_confidence: number | null;
 }
 
 export interface ScanDetail extends AnalyzeResponse {
@@ -117,20 +115,18 @@ export interface UserStats {
   totals: {
     analyses: number;
     total_lesions: number;
-    most_detected_class: AcneClass | null;
-    avg_confidence: number | null;
+    latest_severity: Severity | null;
   };
   recent: Array<{
     scan_id: string;
     created_at: string;
     thumbnail_url: string;
     total_lesions: number;
-    classes_present: AcneClass[];
-    severity: Severity;
+    severity: Severity | null;
   }>;
 }
 
-export interface TrendPoint { created_at: string; total_lesions: number; severity: Severity }
+export interface TrendPoint { created_at: string; total_lesions: number; severity: Severity | null }
 
 export interface ConversationItem {
   conversation_id: string;
@@ -142,7 +138,7 @@ export interface ConversationItem {
 
 export interface ConversationMessages {
   conversation_id: string;
-  scan_summary: { total_lesions: number; dominant_class: AcneClass | null; severity: Severity } | null;
+  scan_summary: { total_lesions: number; severity: Severity | null } | null;
   messages: ChatMessage[];
 }
 
@@ -164,14 +160,15 @@ export interface UsageStats {
 
 export interface ModelStats {
   active_models: {
-    detection: { name: string; version: string; metrics?: Record<string, number> };
-    classification: { name: string; version: string; metrics?: Record<string, number> };
+    detection: ModelInfoEntry & { metrics?: Record<string, number> };
+    /** `metrics` may carry `macro_f1` and `accuracy` (4 classes), both as 0..1 fractions. */
+    classification: ModelInfoEntry & { metrics?: Record<string, number> };
   };
   summary: {
     requests: number; avg_total_ms: number; p95_total_ms: number;
     error_rate: number; no_lesion_rate: number; low_confidence_rate: number;
   };
-  class_distribution: { class: AcneClass; lesion_count: number; avg_confidence: number; low_conf_rate: number }[];
+  severity_distribution: { severity: Severity; scan_count: number; avg_confidence: number; low_conf_rate: number }[];
   series: {
     period: string; avg_detection_ms: number; avg_classification_ms: number; avg_total_ms: number;
     error_rate: number; low_confidence_rate: number; avg_confidence: number;

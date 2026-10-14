@@ -1,21 +1,20 @@
 import { Link } from 'react-router-dom';
 import { Camera, CheckCircle2, Lightbulb, ScanSearch, Search } from 'lucide-react';
-import { ACNE_CLASSES, CLASS_META } from '@acnevision/shared';
+import { SEVERITY_META, SEVERITY_ORDER, type Severity } from '@acnevision/shared';
 
 const steps = [
   { icon: Camera, title: 'Buka Kamera', text: 'Izinkan akses kamera atau unggah foto wajah.' },
   { icon: Search, title: 'Deteksi Jerawat', text: 'AI mencari lokasi setiap lesi di wajah.' },
   { icon: ScanSearch, title: 'Ambil Foto', text: 'Ambil foto lalu tunggu proses analisis.' },
-  { icon: CheckCircle2, title: 'Lihat Hasil', text: 'Lihat jenis, jumlah, dan tingkat keyakinan AI.' },
+  { icon: CheckCircle2, title: 'Lihat Hasil', text: 'Lihat jumlah lesi, tingkat keparahan, dan tingkat keyakinan AI.' },
   { icon: Lightbulb, title: 'Dapatkan Rekomendasi', text: 'Chatbot memberi saran perawatan sesuai hasil.' },
 ];
 
-const descriptions: Record<string, string> = {
-  Blackheads: 'Pori tersumbat yang terbuka dan teroksidasi sehingga tampak hitam.',
-  Whiteheads: 'Pori tersumbat yang tertutup sehingga tampak sebagai bintik putih.',
-  Papules: 'Benjolan merah kecil, meradang, tanpa nanah.',
-  Pustules: 'Jerawat meradang dengan nanah di puncaknya.',
-  Cyst: 'Benjolan dalam, besar, dan nyeri. Perlu perhatian dokter kulit.',
+const descriptions: Record<Severity, string> = {
+  mild: 'Jerawat tidak banyak dan umumnya tidak terlalu meradang.',
+  moderate: 'Jerawat lebih banyak dan mulai tampak tersebar di beberapa area.',
+  severe: 'Jerawat banyak dan lebih sering terasa nyeri atau meradang.',
+  very_severe: 'Jerawat sangat banyak atau meradang luas. Sebaiknya periksakan ke dokter kulit.',
 };
 
 export default function HowItWorks() {
@@ -34,14 +33,16 @@ export default function HowItWorks() {
       </ol>
 
       <section>
-        <h2 className="mb-6 text-center">Apa yang bisa dideteksi?</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {ACNE_CLASSES.map((c) => (
-            <div key={c} className="card">
-              <div className="mb-3 h-16 rounded-btn" style={{ background: `${CLASS_META[c].color}22`, borderLeft: `4px solid ${CLASS_META[c].color}` }} aria-hidden />
-              <h3 className="text-base">{CLASS_META[c].label}</h3>
-              <p className="text-xs text-ink-400">{c}</p>
-              <p className="mt-2 text-sm">{descriptions[c]}</p>
+        <h2 className="mb-2 text-center">Empat tingkat keparahan</h2>
+        <p className="mx-auto mb-6 max-w-xl text-center">
+          Setelah masuk, model AI menilai tingkat keparahan dari seluruh foto, bukan dari satu jerawat. Tanpa akun, kamu mendapat perkiraan dari jumlah lesi yang terdeteksi.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {SEVERITY_ORDER.map((s) => (
+            <div key={s} className="card">
+              <div className="mb-3 h-16 rounded-btn" style={{ background: SEVERITY_META[s].tint, borderLeft: `4px solid ${SEVERITY_META[s].solid}` }} aria-hidden />
+              <h3 className="text-base">{SEVERITY_META[s].label}</h3>
+              <p className="mt-2 text-sm">{descriptions[s]}</p>
             </div>
           ))}
         </div>

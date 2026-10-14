@@ -1,36 +1,46 @@
-import type { AcneClass, Severity } from '../types/api';
+import type { Severity } from '../types/api';
 
 /** Fixed order, must match the classification model output. Never re-sort. */
-export const ACNE_CLASSES: readonly AcneClass[] = ['Blackheads', 'Cyst', 'Papules', 'Pustules', 'Whiteheads'];
+export const SEVERITY_ORDER: readonly Severity[] = ['mild', 'moderate', 'severe', 'very_severe'];
 
-export const CLASS_META: Record<AcneClass, { color: string; label: string }> = {
-  Blackheads: { color: '#334155', label: 'Komedo Hitam' },
-  Whiteheads: { color: '#0EA5E9', label: 'Komedo Putih' },
-  Papules: { color: '#F97316', label: 'Papula' },
-  Pustules: { color: '#EAB308', label: 'Pustula' },
-  Cyst: { color: '#DC2626', label: 'Kista' },
+/**
+ * `bg` and `text` are the badge pair. `solid` is the strong color for bars and the active scale segment, `tint` the pale
+ * one for inactive segments and bar tracks. very_severe is a filled badge (dark background, white text, docs/06 section 1).
+ */
+export const SEVERITY_META: Record<Severity, { bg: string; text: string; solid: string; tint: string; label: string }> = {
+  mild: { bg: '#DCFCE7', text: '#15803D', solid: '#15803D', tint: '#DCFCE7', label: 'Ringan' },
+  moderate: { bg: '#FEF3C7', text: '#B45309', solid: '#B45309', tint: '#FEF3C7', label: 'Sedang' },
+  severe: { bg: '#FEE2E2', text: '#B91C1C', solid: '#B91C1C', tint: '#FEE2E2', label: 'Berat' },
+  very_severe: { bg: '#9F1239', text: '#FFFFFF', solid: '#9F1239', tint: '#FFE4E6', label: 'Sangat Berat' },
 };
 
-export const SEVERITY_META: Record<Severity, { bg: string; text: string; label: string }> = {
-  clear: { bg: '#DCFCE7', text: '#166534', label: 'Bersih' },
-  mild: { bg: '#DCFCE7', text: '#15803D', label: 'Ringan' },
-  moderate: { bg: '#FEF3C7', text: '#B45309', label: 'Sedang' },
-  severe: { bg: '#FEE2E2', text: '#B91C1C', label: 'Berat' },
-};
-
-/** Upper bound (inclusive) of total lesions per severity. Keep in sync with backend/app/ml/severity.py. */
-export const SEVERITY_THRESHOLDS = { clear: 0, mild: 5, moderate: 20 } as const;
+/** Upper bound (inclusive) of total lesions per severity (Hayashi). Above `severe` is very_severe. Keep in sync with backend/app/ml/severity.py. */
+export const SEVERITY_THRESHOLDS = { mild: 5, moderate: 20, severe: 50 } as const;
 
 export const LOW_CONFIDENCE_THRESHOLD = 0.6;
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
-export function computeSeverity(total: number, hasConfidentCyst: boolean): Severity {
-  let s: Severity =
-    total === 0 ? 'clear'
-    : total <= SEVERITY_THRESHOLDS.mild ? 'mild'
-    : total <= SEVERITY_THRESHOLDS.moderate ? 'moderate'
-    : 'severe';
-  if (hasConfidentCyst && (s === 'clear' || s === 'mild')) s = 'moderate';
-  return s;
+/** Severity estimated from the lesion count alone (guest path). null when there are no lesions. */
+export function estimateSeverity(total: number): Severity | null {
+  if (total <= 0) return null;
+  if (total <= SEVERITY_THRESHOLDS.mild) return 'mild';
+  if (total <= SEVERITY_THRESHOLDS.moderate) return 'moderate';
+  if (total <= SEVERITY_THRESHOLDS.severe) return 'severe';
+  return 'very_severe';
+}
+
+/**
+ * True when the model's severity is 2 or more levels away from the Hayashi level of the lesion count, in either direction
+ * (FR-SCAN-19). Only used to decide whether to show an explanatory note; the comparison itself is never displayed.
+ */
+export function severityMismatch(total: number, severity: Severity): boolean {
+  const estimate = estimateSeverity(total);
+  if (estimate === null) return false;
+  return Math.abs(SEVERITY_ORDER.indexOf(estimate) - SEVERITY_ORDER.indexOf(severity)) >= 2;
+}
+
+/** Moderate and above lead with the "see a doctor" note. Calm tone either way. */
+export function leadsWithDoctor(severity: Severity | null): boolean {
+  return severity === 'moderate' || severity === 'severe' || severity === 'very_severe';
 }

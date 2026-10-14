@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { ArrowRight, Camera, Check, Info, ScanSearch, Sparkles, LineChart, Lock } from 'lucide-react';
-import { ACNE_CLASSES, CLASS_META, COPY, SEVERITY_META, type ScanListItem } from '@acnevision/shared';
+import { COPY, SEVERITY_META, SEVERITY_ORDER, type ScanListItem } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
 import { api } from '../lib/runtime';
 import { fmtDate } from '../lib/errors';
-import { Disclaimer } from '../components/ui';
+import { Disclaimer, SeverityChip } from '../components/ui';
 import heroImage from '../assets/images/heroine.png';
 
 const STEP_ICONS = [Camera, ScanSearch, LineChart];
@@ -24,9 +24,7 @@ function LastScan() {
       {last && (
         <Link to="/history" className="flex items-center gap-3 rounded-btn bg-primary-50 px-4 py-2 text-sm hover:bg-blue-100">
           Scan terakhir: {fmtDate(last.created_at)}
-          <span className="badge" style={{ background: SEVERITY_META[last.severity].bg, color: SEVERITY_META[last.severity].text }}>
-            {SEVERITY_META[last.severity].label}
-          </span>
+          <SeverityChip severity={last.severity} />
         </Link>
       )}
     </div>
@@ -55,12 +53,12 @@ export default function Home() {
             </p>
           </div>
           <div className="mt-8 max-w-lg rounded-card bg-tint p-4">
-            <p className="text-label-md text-ink-900">{c.lesionTypesTitle}</p>
+            <p className="text-label-md text-ink-900">{c.severityLevelsTitle}</p>
             <ul className="mt-3 flex flex-wrap gap-2">
-              {ACNE_CLASSES.map((cls) => (
-                <li key={cls} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1 text-label-sm text-ink-700">
-                  <span className="h-2 w-2 rounded-full" style={{ background: CLASS_META[cls].color }} aria-hidden />
-                  {cls}
+              {SEVERITY_ORDER.map((level) => (
+                <li key={level} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1 text-label-sm text-ink-700">
+                  <span className="h-2 w-2 rounded-full" style={{ background: SEVERITY_META[level].solid }} aria-hidden />
+                  {SEVERITY_META[level].label}
                 </li>
               ))}
             </ul>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, Download, Droplets, Eye, EyeOff, Focus, Hand, Stethoscope, Sun, ZoomIn, ZoomOut, type LucideIcon } from 'lucide-react';
-import { COPY } from '@acnevision/shared';
+import { COPY, leadsWithDoctor } from '@acnevision/shared';
 import { downloadDetectionPng } from '../lib/export';
 import { summarizeConfidence } from '../lib/detection';
 import { errMessage } from '../lib/errors';
@@ -28,7 +28,7 @@ export default function DetectResult() {
   // Guest results live in memory only (photos are never stored), so a refresh lands back on /scan with a short note.
   if (!detection || !imageUrl) return <Navigate to="/scan" replace state={{ resultExpired: true }} />;
 
-  const { total_lesions, severity, severity_is_estimate } = detection.summary;
+  const { total_lesions, severity } = detection.summary;
   const R = COPY.detectResult;
   const zoom = ZOOM_STEPS[zoomIdx];
   const activeIdx = hovered ?? selected;
@@ -43,8 +43,8 @@ export default function DetectResult() {
     setFocus({ cx: fit.cx, cy: fit.cy, key: Date.now() });
   };
 
-  // For moderate or severe estimates the doctor note leads, right under the summary. Tone stays calm either way.
-  const doctorFirst = severity === 'moderate' || severity === 'severe';
+  // For moderate or higher estimates the doctor note leads, right under the summary. Tone stays calm either way.
+  const doctorFirst = leadsWithDoctor(severity);
   const doctorBlock = (
     <div className="flex gap-3">
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-primary-50 text-primary-600" aria-hidden>
@@ -81,7 +81,7 @@ export default function DetectResult() {
   );
 
   // One "Saran" card instead of two: tips and the doctor note split by a thin rule (side by side at md, stacked otherwise).
-  // For moderate or severe estimates the doctor note comes first.
+  // For moderate or higher estimates the doctor note comes first.
   const adviceCard = (
     <div className="card">
       <div className="space-y-5 md:grid md:grid-cols-2 md:gap-x-8 md:space-y-0 lg:block lg:space-y-5">
@@ -115,9 +115,7 @@ export default function DetectResult() {
       </header>
 
       {/* Below lg the full summary leads, so count and severity are not pushed under the photo and list */}
-      {hasLesions && (
-        <SeveritySummary total={total_lesions} severity={severity} isEstimate={severity_is_estimate} className="lg:hidden" />
-      )}
+      {hasLesions && <SeveritySummary total={total_lesions} severity={severity} className="lg:hidden" />}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
         {/* Photo runs edge to edge inside the card: padded toolbar above, padded list below */}
@@ -214,7 +212,7 @@ export default function DetectResult() {
 
         <div className="space-y-6">
           {hasLesions ? (
-            <SeveritySummary total={total_lesions} severity={severity} isEstimate={severity_is_estimate} className="hidden lg:block" />
+            <SeveritySummary total={total_lesions} severity={severity} className="hidden lg:block" />
           ) : (
             <EmptyState
               title={R.emptyTitle}

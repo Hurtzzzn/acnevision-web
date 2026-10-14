@@ -2,17 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Trash2 } from 'lucide-react';
-import { CLASS_META, SEVERITY_META, type Paginated, type ScanListItem, type TrendPoint } from '@acnevision/shared';
+import type { Paginated, ScanListItem, TrendPoint } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, fmtDate, pct } from '../lib/errors';
 import { useUi } from '../store/ui';
-import { EmptyState, ErrorBox, Modal, Spinner } from '../components/ui';
+import { EmptyState, ErrorBox, Modal, SeverityChip, Spinner } from '../components/ui';
 
 const PAGE_SIZE = 10;
-
-function Sev({ s }: { s: ScanListItem['severity'] }) {
-  return <span className="badge" style={{ background: SEVERITY_META[s].bg, color: SEVERITY_META[s].text }}>{SEVERITY_META[s].label}</span>;
-}
 
 export default function HistoryPage() {
   const [page, setPage] = useState(1);
@@ -74,17 +70,16 @@ export default function HistoryPage() {
           <div className="card hidden overflow-x-auto p-0 md:block md:p-0">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-primary-50 text-xs uppercase text-ink-600">
-                <tr>{['Tanggal', 'Foto', 'Hasil', 'Jumlah Lesi', 'Kelas Dominan', 'Confidence', 'Aksi'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
+                <tr>{['Tanggal', 'Foto', 'Keparahan', 'Keyakinan', 'Jumlah Lesi', 'Aksi'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {data.items.map((s) => (
                   <tr key={s.scan_id}>
                     <td className="px-4 py-3">{fmtDate(s.created_at, true)}</td>
                     <td className="px-4 py-3">{s.thumbnail_url && <img src={s.thumbnail_url} alt="" className="h-12 w-12 rounded-btn object-cover" />}</td>
-                    <td className="px-4 py-3"><Sev s={s.severity} /></td>
+                    <td className="px-4 py-3">{s.severity ? <SeverityChip severity={s.severity} /> : '-'}</td>
+                    <td className="px-4 py-3">{pct(s.severity_confidence)}</td>
                     <td className="px-4 py-3">{s.total_lesions}</td>
-                    <td className="px-4 py-3">{s.dominant_class ? CLASS_META[s.dominant_class].label : '-'}</td>
-                    <td className="px-4 py-3">{pct(s.avg_confidence, 1)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">Lihat</Link>
@@ -103,7 +98,7 @@ export default function HistoryPage() {
                 {s.thumbnail_url && <img src={s.thumbnail_url} alt="" className="h-16 w-16 rounded-btn object-cover" />}
                 <div className="flex-1 space-y-1 text-sm">
                   <p className="font-semibold text-ink-900">{fmtDate(s.created_at, true)}</p>
-                  <div className="flex items-center gap-2"><Sev s={s.severity} /><span>{s.total_lesions} lesi</span></div>
+                  <div className="flex items-center gap-2"><SeverityChip severity={s.severity} /><span>{s.total_lesions} lesi</span></div>
                   <div className="flex gap-2 pt-1">
                     <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">Lihat</Link>
                     <button className="btn-outline px-3 py-1.5 text-danger" onClick={() => setToDelete(s)}>Hapus</button>

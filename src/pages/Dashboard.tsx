@@ -2,20 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Camera } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { COPY, SEVERITY_META, type UserStats } from '@acnevision/shared';
+import { COPY, type UserStats } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { useAuth } from '../store/auth';
 import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { errMessage, fmtDate } from '../lib/errors';
 import { chronological, firstName, formatDelta, greetingKey, lesionTrend } from '../lib/dashboard';
-import { Disclaimer, EmptyState, ErrorBox, Spinner } from '../components/ui';
+import { Disclaimer, EmptyState, ErrorBox, SeverityChip, Spinner } from '../components/ui';
 
 const C = COPY.dashboard;
-
-function SeverityChip({ severity }: { severity: UserStats['recent'][number]['severity'] }) {
-  const m = SEVERITY_META[severity];
-  return <span className="badge" style={{ background: m.bg, color: m.text }}>{m.label}</span>;
-}
 
 function StatCard({ label, value, note }: { label: string; value: string; note: string }) {
   return (

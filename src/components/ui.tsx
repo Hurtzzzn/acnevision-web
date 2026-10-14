@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
-import { CLASS_META, COPY, SEVERITY_META, type AcneClass, type Severity } from '@acnevision/shared';
+import { COPY, SEVERITY_META, type Severity } from '@acnevision/shared';
 import { useUi } from '../store/ui';
 
 export function Logo({ className = '' }: { className?: string }) {
@@ -51,23 +51,11 @@ export function SeverityBadge({ severity, isEstimate = true, large = false }: { 
   );
 }
 
-/** Darker text per class so the 10%-tinted chip stays readable. Chip dot and tint come from CLASS_META. */
-const CLASS_TEXT: Record<AcneClass, string> = {
-  Blackheads: '#334155',
-  Cyst: '#B91C1C',
-  Papules: '#C2410C',
-  Pustules: '#A16207',
-  Whiteheads: '#0369A1',
-};
-
-export function ClassBadge({ cls }: { cls: AcneClass }) {
-  const { color, label } = CLASS_META[cls];
-  return (
-    <span className="badge gap-1.5 py-1" style={{ background: `${color}1A`, color: CLASS_TEXT[cls] }}>
-      <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
-      {label}
-    </span>
-  );
+/** Small severity badge for lists and cards. Renders nothing without a severity (a scan with no lesions has no badge). */
+export function SeverityChip({ severity }: { severity: Severity | null }) {
+  if (!severity) return null;
+  const m = SEVERITY_META[severity];
+  return <span className="badge" style={{ background: m.bg, color: m.text }}>{m.label}</span>;
 }
 
 export function Spinner({ label }: { label?: string }) {

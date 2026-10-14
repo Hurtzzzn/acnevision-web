@@ -1,20 +1,21 @@
 import { useId, useState } from 'react';
 import { Bot, ChevronDown, Droplets, FlaskConical, HandMetal, Stethoscope, type LucideIcon } from 'lucide-react';
-import { COPY, type Severity } from '@acnevision/shared';
+import { COPY, leadsWithDoctor, type Severity } from '@acnevision/shared';
 
 const R = COPY.recommendation;
 const POINT_ICONS: Record<string, LucideIcon> = { cleansing: Droplets, actives: FlaskConical, avoid: HandMetal, doctor: Stethoscope };
 
 /**
  * Care recommendation: the assistant's own text in one card, then general guidance. "Kapan ke Dokter" is always visible
- * (highlighted for moderate or severe estimates); the three care points fold away until asked for. Tone stays calm.
+ * (highlighted when the AI's severity is moderate or higher); the three care points fold away until asked for. Tone stays calm.
+ * `severity` is the model's result; null (no lesions, so no severity) keeps the note low-key.
  */
 export function Recommendation({ text, isFallback, loading, severity }: {
-  text: string | null; isFallback?: boolean; loading: boolean; severity: Severity;
+  text: string | null; isFallback?: boolean; loading: boolean; severity: Severity | null;
 }) {
   const uid = useId();
   const [open, setOpen] = useState(false);
-  const doctorFirst = severity === 'moderate' || severity === 'severe';
+  const doctorFirst = leadsWithDoctor(severity);
   const doctor = R.points.find((p) => p.key === 'doctor')!;
   const care = R.points.filter((p) => p.key !== 'doctor');
   const DoctorIcon = POINT_ICONS.doctor;

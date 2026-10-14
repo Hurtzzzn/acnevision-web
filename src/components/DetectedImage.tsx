@@ -9,17 +9,11 @@ const LEADER_GAP = 20;
 
 type Pos = { x: number; y: number };
 
-/** The fields the photo overlay needs; both detection lesions and classified lesions satisfy it. */
+/** The fields the photo overlay needs. */
 export type BoxLesion = Pick<DetectedLesion, 'idx' | 'bbox' | 'det_confidence'>;
 
-const DEFAULT_COLOR = '#2563EB';
-
-/** Readable text color (dark or white) for a filled chip of the given hex color. */
-export function textOn(hex: string): string {
-  const n = parseInt(hex.slice(1), 16);
-  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
-  return lum > 0.6 ? '#0F172A' : '#FFFFFF';
-}
+/** One neutral color for every box, for guests and signed-in users alike. */
+const BOX_COLOR = '#2563EB';
 
 function overlaps(a: Pos, b: Pos) {
   return a.x < b.x + CHIP && b.x < a.x + CHIP && a.y < b.y + CHIP && b.y < a.y + CHIP;
@@ -73,28 +67,20 @@ interface DetectedImageProps<T extends BoxLesion> {
   focus?: { cx: number; cy: number; key: number } | null;
   onHover?: (idx: number | null) => void;
   onSelect?: (idx: number) => void;
-  /** Per-lesion box color. Omit for the neutral blue used by guests (no class information). */
-  getColor?: (l: T) => string;
-  /** Low-confidence lesions get a dashed box. */
-  isLow?: (l: T) => boolean;
-  /** Accessible name of a number chip; defaults to the neutral "Jerawat n". */
-  getLabel?: (l: T) => string;
-  /** Grad-CAM PNGs (base64) by lesion idx, drawn inside each box. */
-  heatmaps?: Record<number, string>;
+  /** Grad-CAM PNG (base64): one heatmap laid over the whole photo, under the boxes. */
+  heatmap?: string | null;
   /** Width / height of the photo when known up front (e.g. from the API), so the frame has its final height before the image loads. */
   aspect?: number;
 }
 
 /**
- * Result photo with numbered boxes 1..n. Guests get neutral blue boxes with no class color or name;
- * logged-in results pass `getColor` / `isLow` / `getLabel` to color by class.
+ * Result photo with numbered boxes 1..n, all in one neutral blue (no class color or name), optionally under a single Grad-CAM heatmap.
  * Keyboard path is the lesion list; chips here are mouse/touch targets (tabIndex -1) that keep an aria-label.
  */
 export function DetectedImage<T extends BoxLesion>({
   src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, selectedIdx = null, focus = null, onHover, onSelect,
-  getColor, isLow, getLabel, heatmaps, aspect,
+  heatmap, aspect,
 }: DetectedImageProps<T>) {
-  const classy = !!getColor;
   const frameRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -169,9 +155,12 @@ export function DetectedImage<T extends BoxLesion>({
           ref={imgRef} src={src} alt={alt} className="absolute inset-0 block h-full w-full"
           onLoad={(e) => setNatural(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight)}
         />
+        {/* Before the boxes in the DOM, so boxes and chips stay on top of the heatmap */}
+        {loaded && heatmap && (
+          <img src={`data:image/png;base64,${heatmap}`} alt="" className="pointer-events-none absolute inset-0 block h-full w-full opacity-80" />
+        )}
         {loaded && showBoxes && lesions.map((l) => {
           const active = activeIdx === l.idx;
-          const color = getColor?.(l) ?? DEFAULT_COLOR;
           return (
             <div
               key={l.idx}
@@ -179,20 +168,14 @@ export function DetectedImage<T extends BoxLesion>({
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
-              className={`absolute cursor-pointer rounded-[3px] transition-colors ${active ? 'z-20 border-[3px]' : classy ? 'border-2' : 'border-[1.5px]'}`}
+              className={`absolute cursor-pointer rounded-[3px] transition-colors ${active ? 'z-20 border-[3px]' : 'border-[1.5px]'}`}
               style={{
                 left: `${l.bbox.x1 * 100}%`, top: `${l.bbox.y1 * 100}%`,
                 width: `${(l.bbox.x2 - l.bbox.x1) * 100}%`, height: `${(l.bbox.y2 - l.bbox.y1) * 100}%`,
-                borderColor: color, borderStyle: isLow?.(l) ? 'dashed' : 'solid',
-                background: active ? `${color}33` : undefined,
-                // Class-colored boxes get a white inner and a dark outer hairline so they stay visible on skin, hair, and clothing alike.
-                boxShadow: classy ? '0 0 0 1px rgba(255,255,255,0.95), 0 0 0 2px rgba(15,23,42,0.4)' : undefined,
+                borderColor: BOX_COLOR, borderStyle: 'solid',
+                background: active ? `${BOX_COLOR}33` : undefined,
               }}
-            >
-              {heatmaps?.[l.idx] && (
-                <img src={`data:image/png;base64,${heatmaps[l.idx]}`} alt="" className="pointer-events-none absolute inset-0 h-full w-full opacity-80" />
-              )}
-            </div>
+            />
           );
         })}
         {loaded && showBoxes && size.w > 0 && (
@@ -211,7 +194,7 @@ export function DetectedImage<T extends BoxLesion>({
               return (
                 <line
                   key={l.idx} x1={cx} y1={cy} x2={px} y2={py}
-                  stroke={getColor?.(l) ?? DEFAULT_COLOR} strokeWidth={active ? 1.75 : 1.25} strokeOpacity={active ? 1 : 0.8}
+                  stroke={BOX_COLOR} strokeWidth={active ? 1.75 : 1.25} strokeOpacity={active ? 1 : 0.8}
                 />
               );
             })}
@@ -221,22 +204,18 @@ export function DetectedImage<T extends BoxLesion>({
           const p = chips.get(l.idx);
           if (!p) return null;
           const active = activeIdx === l.idx;
-          const color = getColor?.(l);
           return (
             <button
               key={`chip-${l.idx}`}
               type="button"
-              aria-label={getLabel?.(l) ?? `${COPY.detectResult.lesionName} ${l.idx + 1}`}
+              aria-label={`${COPY.detectResult.lesionName} ${l.idx + 1}`}
               aria-pressed={active}
               tabIndex={-1}
               onMouseEnter={() => onHover?.(l.idx)}
               onMouseLeave={() => onHover?.(null)}
               onClick={() => onSelect?.(l.idx)}
-              className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] after:absolute after:-inset-1.5 after:content-[''] font-semibold leading-none shadow-card transition-colors ${classy ? (active ? '' : 'frosted border-2 text-ink-900') : active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
-              style={{
-                left: p.x, top: p.y, width: CHIP, height: CHIP,
-                ...(color && { borderColor: color, ...(active && { background: color, color: textOn(color) }) }),
-              }}
+              className={`tnum absolute z-30 flex items-center justify-center rounded-full text-[12px] after:absolute after:-inset-1.5 after:content-[''] font-semibold leading-none shadow-card transition-colors ${active ? 'bg-primary-600 text-white' : 'frosted text-primary-800'}`}
+              style={{ left: p.x, top: p.y, width: CHIP, height: CHIP }}
             >
               {l.idx + 1}
             </button>

@@ -20,6 +20,13 @@ describe('UI copy', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('names no lesion types, fixed model names, or "clean skin" claims', () => {
+    const all = strings(COPY).join(' | ');
+    // "non-komedogenik" is a product term, not a lesion type, so only the lesion words are listed
+    expect(all).not.toMatch(/blackhead|whitehead|papule|pustule|cyst|komedo (hitam|putih)|papula|pustula|kista|yolo|mobilenet|resnet|efficientnet/i);
+    expect(all).not.toMatch(/5 jenis|lima jenis|5 kelas|kulit bersih|kulit sehat|diagnosis(?! medis)/i);
+  });
+
   it('keeps the chat placeholder short enough for a phone input', () => {
     expect(COPY.chat.placeholder.length).toBeLessThanOrEqual(28);
   });
