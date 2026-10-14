@@ -1,14 +1,15 @@
-import { useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, Loader2, Lock, Mail, User, type LucideIcon } from 'lucide-react';
+import { Check, Circle, Eye, EyeOff, Loader2, Lock, Mail, User, type LucideIcon } from 'lucide-react';
 import { ApiRequestError, COPY } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
 import { USE_MOCK } from '../lib/runtime';
 import { authPath, DEFAULT_AFTER_LOGIN, safeRedirect } from '../lib/redirect';
 import {
-  validateEmail, validateLoginPassword, validateName, validateNewPassword,
+  PASSWORD_MIN_LENGTH, validateEmail, validateLoginPassword, validateName, validateNewPassword,
 } from '../lib/authForm';
 import { ErrorBox } from '../components/ui';
+import { Crescent } from '../components/home/Crescent';
 
 type Mode = 'login' | 'register';
 type FieldName = 'name' | 'email' | 'password';
@@ -34,6 +35,29 @@ function AuthCard({ children }: { children: ReactNode }) {
   );
 }
 
+/** Desktop: calm brand panel on the left, form card on the right. Mobile: the form only. */
+function AuthShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="mx-auto grid w-full max-w-5xl items-stretch gap-6 py-2 md:py-8 lg:grid-cols-[1fr_30rem]">
+      <aside className="relative hidden overflow-hidden rounded-card bg-tint p-10 lg:flex lg:flex-col lg:justify-center">
+        <Crescent className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 opacity-25" />
+        <div className="relative space-y-6">
+          <h2>{c.panel.title}</h2>
+          <ul className="space-y-4">
+            {c.panel.items.map((item) => (
+              <li key={item} className="flex gap-3 text-ink-700">
+                <Check className="mt-1 h-4 w-4 shrink-0 text-primary-600" aria-hidden />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </aside>
+      <div className="card mx-auto w-full max-w-[30rem] space-y-6 p-6 md:p-8 lg:max-w-none">{children}</div>
+    </div>
+  );
+}
+
 interface FieldProps {
   id: string;
   label: string;
@@ -41,8 +65,9 @@ interface FieldProps {
   onChange: (value: string) => void;
   onBlur?: () => void;
   error?: string;
-  hint?: string;
+  hint?: ReactNode;
   icon: LucideIcon;
+  inputMode?: 'email' | 'text';
   inputRef: RefObject<HTMLInputElement>;
   type?: string;
   autoComplete?: string;
@@ -55,7 +80,7 @@ interface FieldProps {
 
 /** Label tied to its input; the message line is always mounted so screen readers announce changes (aria-live). */
 function Field({
-  id, label, value, onChange, onBlur, error, hint, icon: Icon, inputRef, type = 'text', autoComplete, placeholder, labelAside, trailing,
+  id, label, value, onChange, onBlur, error, hint, icon: Icon, inputRef, type = 'text', inputMode, autoComplete, placeholder, labelAside, trailing,
 }: FieldProps) {
   const msgId = `${id}-msg`;
   return (
@@ -70,6 +95,9 @@ function Field({
           ref={inputRef}
           id={id}
           type={type}
+          inputMode={inputMode}
+          autoCapitalize={type === 'email' ? 'none' : undefined}
+          spellCheck={type === 'email' ? false : undefined}
           value={value}
           autoComplete={autoComplete}
           placeholder={placeholder}
@@ -88,13 +116,31 @@ function Field({
   );
 }
 
-function DemoHint() {
-  // Dev only: import.meta.env.DEV is false in production builds, so the sample credentials never ship.
+const SAMPLE_ACCOUNTS = {
+  user: { email: 'demo@acnevision.test', password: 'demo12345' },
+  admin: { email: 'admin@acnevision.test', password: 'admin12345' },
+} as const;
+
+/** Dev only: import.meta.env.DEV is false in production builds, so the sample credentials never ship. */
+function SampleAccounts({ onFill }: { onFill: (account: { email: string; password: string }) => void }) {
   if (!USE_MOCK || !import.meta.env.DEV) return null;
+  const btn = 'rounded px-1 text-body-sm text-ink-500 underline-offset-2 transition-colors hover:text-primary-700 hover:underline';
   return (
-    <p className="rounded-btn bg-tint p-3 text-body-sm text-ink-600">
-      {c.demoNote} <b>demo@acnevision.test</b> / demo12345, admin: <b>admin@acnevision.test</b> / admin12345.
+    <p className="flex justify-center gap-4">
+      <button type="button" className={btn} onClick={() => onFill(SAMPLE_ACCOUNTS.user)}>{c.sample.user}</button>
+      <button type="button" className={btn} onClick={() => onFill(SAMPLE_ACCOUNTS.admin)}>{c.sample.admin}</button>
     </p>
+  );
+}
+
+/** Live check for the new-password rule: neutral until met, then a calm blue tick. */
+function PasswordRule({ met }: { met: boolean }) {
+  const Icon = met ? Check : Circle;
+  return (
+    <span className={`inline-flex items-center gap-1.5 transition-colors duration-200 ${met ? 'text-primary-700' : 'text-ink-500'}`}>
+      <Icon className="h-3.5 w-3.5" aria-hidden />
+      {c.fields.passwordRule}
+    </span>
   );
 }
 
@@ -117,8 +163,8 @@ function ModeTabs({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
         to={authPath(target === 'login' ? '/login' : '/register', redirectTo)}
         replace
         aria-current={active ? 'page' : undefined}
-        className={`rounded-[10px] px-4 py-2.5 text-center text-label-md transition-colors ${
-          active ? 'bg-white text-primary-600 shadow-card' : 'text-ink-600 hover:text-ink-900'
+        className={`flex min-h-11 items-center justify-center rounded-[10px] px-4 text-center text-label-md transition-[color,background-color,box-shadow,transform] duration-200 motion-safe:active:scale-[0.97] ${
+          active ? 'bg-white text-primary-700 shadow-card' : 'text-ink-600 hover:text-ink-900'
         }`}
       >
         {c[target].tab}
@@ -173,19 +219,29 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
     if (values[f]) setError(f, validators[f](values[f]));
   }
 
+  // Focus the first field on arrival (the form remounts per mode, so this also runs after switching tabs).
+  useEffect(() => { refs[fields[0]].current?.focus(); }, []);
+
   function fail(err: unknown) {
     if (!(err instanceof ApiRequestError)) {
       setFormError(c.errors.generic);
     } else if (!isRegister && (err.status === 401 || err.code === 'UNAUTHORIZED')) {
+      // One message for "wrong password" and "unknown email", so the form never reveals who has an account.
       setFormError(c.errors.invalidCredentials);
       refs.password.current?.focus();
-    } else if (isRegister && /terdaftar/i.test(err.message)) {
+    } else if (isRegister && /terdaftar|already|registered/i.test(err.message)) {
       setError('email', c.errors.emailTaken);
       refs.email.current?.focus();
     } else {
-      setFormError(err.message || c.errors.generic);
+      setFormError(c.errors.generic);
     }
     setBusy(false);
+  }
+
+  function fillSample(account: { email: string; password: string }) {
+    setValues((prev) => ({ ...prev, ...account }));
+    setErrors({});
+    setFormError(null);
   }
 
   async function submit(e: FormEvent) {
@@ -235,11 +291,10 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
 
   const otherPath = authPath(isRegister ? '/login' : '/register', redirectTo);
   return (
-    <AuthCard>
+    <AuthShell>
       <ModeTabs mode={mode} redirectTo={redirectTo} />
 
       <header className="space-y-2">
-        <p className="text-label-sm uppercase text-primary-600">{copy.eyebrow}</p>
         <h1>{copy.title}</h1>
         <p>{copy.lead}</p>
       </header>
@@ -253,7 +308,7 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
           />
         )}
         <Field
-          id="email" label={c.fields.email} icon={Mail} inputRef={refs.email} type="email" autoComplete="email"
+          id="email" label={c.fields.email} icon={Mail} inputRef={refs.email} type="email" inputMode="email" autoComplete="email"
           placeholder={c.fields.emailPlaceholder} value={values.email} error={errors.email}
           onChange={(v) => change('email', v)} onBlur={() => blur('email')}
         />
@@ -261,7 +316,7 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
           id="password" label={c.fields.password} icon={Lock} inputRef={refs.password}
           type={showPassword ? 'text' : 'password'} autoComplete={isRegister ? 'new-password' : 'current-password'}
           placeholder={c.fields.passwordPlaceholder} value={values.password} error={errors.password}
-          hint={isRegister ? c.fields.newPasswordHint : undefined}
+          hint={isRegister ? <PasswordRule met={values.password.length >= PASSWORD_MIN_LENGTH} /> : undefined}
           onChange={(v) => change('password', v)} onBlur={() => blur('password')}
           labelAside={!isRegister && (
             <Link to="/reset-password" className="rounded text-label-sm text-primary-600 hover:text-primary-700 hover:underline">
@@ -292,11 +347,13 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
         <Link to={otherPath} replace className="font-semibold text-primary-600 hover:text-primary-700 hover:underline">{copy.switchAction}</Link>
       </p>
 
-      <div className="space-y-3 border-t border-border pt-5">
-        <p className="text-center text-body-md text-ink-500">{c.accountNote}</p>
-        <DemoHint />
+      <div className="space-y-3 border-t border-border pt-5 text-center">
+        <Link to="/scan" className="inline-flex min-h-11 items-center rounded px-2 text-label-md text-ink-600 transition-colors hover:text-primary-700 hover:underline">
+          {c.skip}
+        </Link>
+        {!isRegister && <SampleAccounts onFill={fillSample} />}
       </div>
-    </AuthCard>
+    </AuthShell>
   );
 }
 

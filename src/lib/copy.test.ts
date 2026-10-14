@@ -28,8 +28,7 @@ describe('UI copy', () => {
   });
 
   it('mentions no course project and no demo mode in visible text', () => {
-    // auth.demoNote is only rendered in dev builds with the mock backend (see DemoHint in Auth.tsx)
-    const visible = strings({ ...COPY, auth: { ...COPY.auth, demoNote: '' } }).join(' | ');
+    const visible = strings(COPY).join(' | ');
     expect(visible).not.toMatch(/mata kuliah|proyek kuliah|project teknologi informasi|mode demo|demo/i);
     expect(COPY.footer).not.toHaveProperty('project');
     expect(COPY.footer).not.toHaveProperty('demoNote');
