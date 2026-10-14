@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Crosshair, Layers, Lightbulb, MessageSquareText, RefreshCw, ScanFace, Sparkles, Sun, Tags, UserRound, Wand2 } from 'lucide-react';
+import { Check, Crosshair, Layers, Lightbulb, MessageSquareText, RefreshCw, Sparkles, Sun, Tags, UserRound, Wand2 } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
@@ -92,8 +92,7 @@ export default function Analyze() {
   return (
     <div className="space-y-6">
       <header className="max-w-2xl">
-        <span className="badge gap-1.5 bg-primary-50 text-primary-700"><ScanFace className="h-3.5 w-3.5" aria-hidden /> {C.eyebrow}</span>
-        <h1 className="mt-3">{C.title}</h1>
+        <h1>{C.title}</h1>
         <p className="mt-1">{C.subtitle}</p>
       </header>
 

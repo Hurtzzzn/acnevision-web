@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleDashed } from 'lucide-react';
+import { CircleHelp } from 'lucide-react';
 import { COPY, type DetectedLesion } from '@acnevision/shared';
 import { isLowConfidence, sortByConfidence } from '../lib/detection';
 
@@ -14,6 +14,11 @@ export type BoxLesion = Pick<DetectedLesion, 'idx' | 'bbox' | 'det_confidence'>;
 
 /** One neutral color for every box, for guests and signed-in users alike. */
 const BOX_COLOR = '#2563EB';
+
+function pinchDistance(pts: Map<number, Pos>): number {
+  const [a, b] = [...pts.values()];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
 
 function overlaps(a: Pos, b: Pos) {
   return a.x < b.x + CHIP && b.x < a.x + CHIP && a.y < b.y + CHIP && b.y < a.y + CHIP;
@@ -71,6 +76,10 @@ interface DetectedImageProps<T extends BoxLesion> {
   heatmap?: string | null;
   /** Width / height of the photo when known up front (e.g. from the API), so the frame has its final height before the image loads. */
   aspect?: number;
+  /** Accessible name of the scrollable zoomed frame (distinct from the photo's alt). Defaults to `alt`. */
+  frameLabel?: string;
+  /** Two-finger pinch on the photo: +1 spread (zoom in), -1 pinch (zoom out). */
+  onPinch?: (dir: 1 | -1) => void;
 }
 
 /**
@@ -79,11 +88,13 @@ interface DetectedImageProps<T extends BoxLesion> {
  */
 export function DetectedImage<T extends BoxLesion>({
   src, lesions, alt, showBoxes = true, zoom = 1, activeIdx = null, selectedIdx = null, focus = null, onHover, onSelect,
-  heatmap, aspect,
+  heatmap, aspect, frameLabel, onPinch,
 }: DetectedImageProps<T>) {
   const frameRef = useRef<HTMLDivElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinchBase = useRef(0);
   const [size, setSize] = useState({ w: 0, h: 0 });
   // Natural ratio once the image has loaded; until then the frame reserves space (given aspect, else 4:3) and draws no overlay.
   const [natural, setNatural] = useState<number | null>(null);
@@ -139,6 +150,25 @@ export function DetectedImage<T extends BoxLesion>({
     [lesions, size.w, size.h],
   );
 
+  // Pinch steps the zoom index once per ~25% change in finger distance; one-finger scroll is left to the browser.
+  const resetPinch = (e: React.PointerEvent) => { pointers.current.delete(e.pointerId); pinchBase.current = 0; };
+  const pinchHandlers = !onPinch ? {} : {
+    onPointerDown: (e: React.PointerEvent) => {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size === 2) pinchBase.current = pinchDistance(pointers.current);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      if (!pointers.current.has(e.pointerId)) return;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size !== 2 || !pinchBase.current) return;
+      const ratio = pinchDistance(pointers.current) / pinchBase.current;
+      if (ratio > 1.25) { onPinch(1); pinchBase.current = pinchDistance(pointers.current); }
+      else if (ratio < 0.8) { onPinch(-1); pinchBase.current = pinchDistance(pointers.current); }
+    },
+    onPointerUp: resetPinch,
+    onPointerCancel: resetPinch,
+  };
+
   return (
     <div
       ref={frameRef}
@@ -146,9 +176,12 @@ export function DetectedImage<T extends BoxLesion>({
       // adds a scrollbar, narrows the photo, shrinks its height, removes the scrollbar, and repeats (the photo "shakes").
       // When zoomed, the gutter is reserved so a scrollbar appearing cannot resize the photo either.
       className={zoom > 1 ? 'overflow-auto bg-tint [scrollbar-gutter:stable]' : 'overflow-hidden bg-tint'}
-      style={zoom > 1 ? { maxHeight: '75vh' } : undefined}
+      // pan-x pan-y hands two-finger gestures to the pinch handlers below instead of zooming the whole page
+      style={{ ...(zoom > 1 ? { maxHeight: '75vh' } : null), ...(onPinch ? { touchAction: 'pan-x pan-y' } : null) }}
       tabIndex={zoom > 1 ? 0 : undefined}
-      aria-label={zoom > 1 ? alt : undefined}
+      role={zoom > 1 ? 'group' : undefined}
+      aria-label={zoom > 1 ? (frameLabel ?? alt) : undefined}
+      {...pinchHandlers}
     >
       <div ref={wrapRef} className="relative" style={{ width: `${zoom * 100}%`, aspectRatio: String(ratio) }}>
         <img
@@ -172,7 +205,7 @@ export function DetectedImage<T extends BoxLesion>({
               style={{
                 left: `${l.bbox.x1 * 100}%`, top: `${l.bbox.y1 * 100}%`,
                 width: `${(l.bbox.x2 - l.bbox.x1) * 100}%`, height: `${(l.bbox.y2 - l.bbox.y1) * 100}%`,
-                borderColor: BOX_COLOR, borderStyle: 'solid',
+                borderColor: BOX_COLOR, borderStyle: isLowConfidence(l) ? 'dashed' : 'solid',
                 background: active ? `${BOX_COLOR}33` : undefined,
               }}
             />
@@ -281,7 +314,7 @@ export function DetectionList({
                 </span>
                 {low && (
                   <span className="mt-1 flex items-center gap-1 text-body-sm text-ink-500">
-                    <CircleDashed className="h-3 w-3 shrink-0" aria-hidden /> {R.lowConfidence}
+                    <CircleHelp className="h-3 w-3 shrink-0" aria-hidden /> {R.lowConfidence}
                   </span>
                 )}
               </span>

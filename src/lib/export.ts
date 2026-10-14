@@ -84,7 +84,7 @@ export async function downloadPdf(src: string, analysis: AnalyzeResponse) {
   let ty = y + 4;
   doc.setTextColor(0); doc.setFontSize(11);
   const rows: string[] = [
-    `Total lesi (hasil deteksi): ${analysis.summary.total_lesions}`,
+    `Total jerawat (hasil deteksi): ${analysis.summary.total_lesions}`,
     // No lesions means no severity: say so plainly instead of printing a level.
     ...(cls
       ? [

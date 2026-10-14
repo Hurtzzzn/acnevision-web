@@ -19,7 +19,7 @@ export default function About() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="card"><h3 className="mb-1">Tim 1: Detection</h3><p className="text-sm">Model deteksi objek untuk mendeteksi lokasi lesi (bounding box).</p></div>
+        <div className="card"><h3 className="mb-1">Tim 1: Detection</h3><p className="text-sm">Model deteksi objek untuk mendeteksi lokasi jerawat (bounding box).</p></div>
         <div className="card"><h3 className="mb-1">Tim 2: Classification</h3><p className="text-sm">Model AI untuk menilai tingkat keparahan jerawat dari foto utuh ke dalam 4 tingkat.</p></div>
       </section>
 

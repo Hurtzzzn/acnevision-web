@@ -79,7 +79,7 @@ export default function Chat() {
               </button>
               {summary && (
                 <div className="mb-3 flex flex-wrap items-center gap-3 rounded-btn bg-primary-50 p-3 text-sm">
-                  <span>Scan terkait: <b>{summary.total_lesions}</b> lesi</span>
+                  <span>Scan terkait: <b>{summary.total_lesions}</b> jerawat</span>
                   {summary.severity && <SeverityBadge severity={summary.severity} isEstimate={false} />}
                 </div>
               )}

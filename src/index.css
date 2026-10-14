@@ -53,7 +53,7 @@
 }
 
 @layer utilities {
-  /* Tabular figures for metrics ("12 lesi", "91%") */
+  /* Tabular figures for metrics ("12 jerawat", "91%") */
   .tnum { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
   /* Frosted chips and camera control docks */
   .frosted {
@@ -62,7 +62,7 @@
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
   }
-  /* Inset block inside a card (e.g. total lesi) */
+  /* Inset block inside a card (e.g. total jerawat) */
   .inset-panel { @apply rounded-btn bg-tint p-4; }
   /* Soft medical disclaimer: light blue, 4px accent strip */
   .disclaimer { @apply rounded-btn border border-primary-200 border-l-4 border-l-primary-600 bg-primary-50 px-[18px] py-3.5 text-body-md text-primary-800; }

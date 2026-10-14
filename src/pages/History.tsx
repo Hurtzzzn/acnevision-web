@@ -49,8 +49,8 @@ export default function HistoryPage() {
       )}
 
       {trend.length > 1 && (
-        <section className="card" aria-label="Tren jumlah lesi">
-          <h3 className="mb-3">Tren jumlah lesi</h3>
+        <section className="card" aria-label="Tren jumlah jerawat">
+          <h3 className="mb-3">Tren jumlah jerawat</h3>
           <div className="h-44">
             <ResponsiveContainer>
               <LineChart data={trend.map((p) => ({ ...p, label: fmtDate(p.created_at) }))}>
@@ -58,7 +58,7 @@ export default function HistoryPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="total_lesions" name="Jumlah lesi" stroke="#2563EB" strokeWidth={2} dot />
+                <Line type="monotone" dataKey="total_lesions" name="Jumlah jerawat" stroke="#2563EB" strokeWidth={2} dot />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -70,7 +70,7 @@ export default function HistoryPage() {
           <div className="card hidden overflow-x-auto p-0 md:block md:p-0">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-primary-50 text-xs uppercase text-ink-600">
-                <tr>{['Tanggal', 'Foto', 'Keparahan', 'Keyakinan', 'Jumlah Lesi', 'Aksi'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
+                <tr>{['Tanggal', 'Foto', 'Keparahan', 'Keyakinan', 'Jumlah Jerawat', 'Aksi'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {data.items.map((s) => (
@@ -98,7 +98,7 @@ export default function HistoryPage() {
                 {s.thumbnail_url && <img src={s.thumbnail_url} alt="" className="h-16 w-16 rounded-btn object-cover" />}
                 <div className="flex-1 space-y-1 text-sm">
                   <p className="font-semibold text-ink-900">{fmtDate(s.created_at, true)}</p>
-                  <div className="flex items-center gap-2"><SeverityChip severity={s.severity} /><span>{s.total_lesions} lesi</span></div>
+                  <div className="flex items-center gap-2"><SeverityChip severity={s.severity} /><span>{s.total_lesions} jerawat</span></div>
                   <div className="flex gap-2 pt-1">
                     <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">Lihat</Link>
                     <button className="btn-outline px-3 py-1.5 text-danger" onClick={() => setToDelete(s)}>Hapus</button>

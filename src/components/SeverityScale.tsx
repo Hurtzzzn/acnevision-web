@@ -35,9 +35,9 @@ export function SeverityScale({ severity, total, large = false }: { severity: Se
   return (
     <div role="img" aria-label={label}>
       {estimate && (
-        <div className="relative h-2.5" aria-hidden>
+        <div className="relative h-2" aria-hidden>
           <span
-            className="absolute -top-0.5 h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[6px] border-t-[8px] border-x-transparent border-t-ink-900"
+            className="absolute -top-0.5 h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[5px] border-t-[7px] border-x-transparent border-t-ink-600"
             style={{ left: `${left}%` }}
           />
         </div>
@@ -46,7 +46,7 @@ export function SeverityScale({ severity, total, large = false }: { severity: Se
         {SEVERITY_ORDER.map((s, i) => (
           <span
             key={s}
-            className="h-2.5 flex-1 border first:rounded-l-full last:rounded-r-full"
+            className="h-2 flex-1 border first:rounded-l-full last:rounded-r-full"
             // Inactive segments keep a thin border in their own hue so the pale fill stays visible on white
             style={{
               background: i === active ? SEVERITY_META[s].solid : SEVERITY_META[s].tint,

@@ -135,11 +135,11 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
                 <ToolButton label={COPY.detectResult.focus} disabled={!fit || (fit.zoomIdx === 0 && zoomIdx === 0)} onClick={focusLesions}>
                   <Focus className="h-4 w-4" aria-hidden /> {COPY.detectResult.focusShort}
                 </ToolButton>
-                <ToolButton label={COPY.detectResult.zoomOut} disabled={zoomIdx === 0} onClick={() => stepZoom(-1)}>
+                <ToolButton label={COPY.detectResult.zoomOut} iconOnly disabled={zoomIdx === 0} onClick={() => stepZoom(-1)}>
                   <ZoomOut className="h-4 w-4" aria-hidden />
                 </ToolButton>
                 <span className="tnum w-11 text-center text-label-md text-ink-600" aria-live="polite">{Math.round(zoom * 100)}%</span>
-                <ToolButton label={COPY.detectResult.zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} onClick={() => stepZoom(1)}>
+                <ToolButton label={COPY.detectResult.zoomIn} iconOnly disabled={zoomIdx === ZOOM_STEPS.length - 1} onClick={() => stepZoom(1)}>
                   <ZoomIn className="h-4 w-4" aria-hidden />
                 </ToolButton>
               </div>

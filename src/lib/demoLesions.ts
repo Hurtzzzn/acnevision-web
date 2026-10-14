@@ -1,7 +1,7 @@
 import { SEVERITY_ORDER, estimateSeverity, type Severity } from '@acnevision/shared';
 
 /**
- * The one source of sample data for the Home illustrations. Every "N lesi" text, every drawn box and the estimated
+ * The one source of sample data for the Home illustrations. Every "N jerawat" text, every drawn box and the estimated
  * severity are derived from here, so the picture and the words can never disagree. Illustration only: these are not
  * detections of any real photo.
  */

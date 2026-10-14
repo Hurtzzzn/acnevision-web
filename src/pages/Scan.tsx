@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Check, Info, Lock, ScanFace } from 'lucide-react';
+import { Check, Info, Lock } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
@@ -42,6 +42,7 @@ export default function Scan() {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<PhotoMethod>('camera');
   const { user, ready } = useAuth();
   const setDetection = useScan((s) => s.setDetection);
   const navigate = useNavigate();
@@ -74,14 +75,13 @@ export default function Scan() {
     }
   }, [navigate, setDetection]);
 
-  if (!ready) return <div className="p-12 text-center"><Spinner label="Memuat..." /></div>;
+  if (!ready) return <div className="p-12 text-center"><Spinner label={COPY.scan.loading} /></div>;
   if (user) return <Navigate to={NEW_ANALYSIS_PATH} replace />;
 
   return (
     <div className="space-y-6">
       <header className="max-w-2xl">
-        <span className="badge gap-1.5 bg-primary-50 text-primary-700"><ScanFace className="h-3.5 w-3.5" aria-hidden /> {COPY.scan.eyebrow}</span>
-        <h1 className="mt-3">{COPY.scan.title}</h1>
+        <h1>{COPY.scan.title}</h1>
         <p className="mt-1">{COPY.scan.subtitle}</p>
       </header>
 
@@ -94,7 +94,7 @@ export default function Scan() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="card relative lg:col-span-2">
-          <PhotoInput onPick={submit} disabled={busy} defaultMode="camera" />
+          <PhotoInput onPick={submit} disabled={busy} defaultMode="camera" review cameraGate onModeChange={setMode} />
           {error && <div className="mt-4"><ErrorBox message={error} /></div>}
 
           <p className="mt-4 flex items-center gap-2 text-body-sm text-ink-500">
@@ -104,11 +104,12 @@ export default function Scan() {
           {busy && <ProcessingState step={step} />}
         </div>
 
-        <aside className="card h-fit bg-primary-50">
+        {/* In camera mode the live guide already says this, so on small screens the tips only show for uploads */}
+        <aside className={`card h-fit bg-primary-50 ${mode === 'camera' ? 'hidden lg:block' : ''}`}>
           <h3 className="mb-3">{COPY.scan.tipsTitle}</h3>
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2 text-body-md">
             {COPY.photoTips.map((t) => (
-              <li key={t} className="flex gap-2"><span className="text-success" aria-hidden>✓</span>{t}</li>
+              <li key={t} className="flex gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-primary-600" aria-hidden />{t}</li>
             ))}
           </ul>
         </aside>

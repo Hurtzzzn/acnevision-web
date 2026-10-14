@@ -16,18 +16,18 @@ export interface ModelSeverity {
  * Signed in (`model` given): the AI model's severity for the whole photo, with its confidence; never the count-based estimate.
  * One card below `lg` at the top, one in the right column from `lg`.
  */
-export function SeveritySummary({ total, severity, className, compact = false, model }: {
+export function SeveritySummary({ total, severity, className, model }: {
   total: number; severity: Severity | null; className: string;
-  /** Keeps the count line at headline size: the side column is narrow (20rem from xl, a third of the width at lg). */
+  /** Kept for callers; the count line is now the same size everywhere. */
   compact?: boolean;
   model?: ModelSeverity;
 }) {
   const R = COPY.detectResult;
   const M = COPY.result;
   return (
-    <section className={`card space-y-5 ${className}`} aria-label={model ? M.severityTitle : R.severityTitle}>
+    <section className={`card space-y-4 ${className}`} aria-label={model ? M.severityTitle : R.severityTitle}>
       <div>
-        <h2 className={`text-headline-lg ${compact ? '' : 'lg:text-display-sm'}`}>
+        <h2 className="text-headline-md">
           <span className="tnum text-primary-600">{total}</span> {R.countUnit}
         </h2>
         {model && <p className="mt-1 text-body-sm text-ink-500">{COPY.lesionCountNote}</p>}
@@ -37,13 +37,17 @@ export function SeveritySummary({ total, severity, className, compact = false, m
           <p className="text-label-md text-ink-600">{model ? M.severityTitle : R.severityTitle}</p>
           {model ? (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <SeverityBadge severity={severity} isEstimate={false} large />
+              <SeverityBadge severity={severity} isEstimate={false} />
               <span className="tnum text-label-lg text-ink-900">{M.confidenceValue(model.confidencePct)}</span>
             </div>
           ) : (
-            <SeverityBadge severity={severity} isEstimate={false} large />
+            // The estimate wording sits right beside the badge at normal size, so the verdict never reads without its context
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <SeverityBadge severity={severity} isEstimate={false} />
+              <p className="text-body-md text-ink-600">{COPY.severityNote}</p>
+            </div>
           )}
-          <div className="pt-2">
+          <div className="pt-1">
             <SeverityScale severity={severity} total={model ? undefined : total} />
           </div>
           {model ? (
@@ -60,9 +64,7 @@ export function SeveritySummary({ total, severity, className, compact = false, m
                 </p>
               )}
             </>
-          ) : (
-            <p className="text-body-sm text-ink-500">{COPY.severityNote}</p>
-          )}
+          ) : null}
         </div>
       )}
     </section>

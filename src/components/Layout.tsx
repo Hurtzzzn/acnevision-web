@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
@@ -7,26 +7,32 @@ import { DEFAULT_AFTER_LOGIN, NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { LoginPromptModal } from './LoginPromptModal';
 import { Logo, Toasts } from './ui';
 
-interface NavItem { to: string; label: string; end?: boolean }
+/** `match` lists the route prefixes that belong to the item (default: its own `to`), so follow-up and child pages keep it active. */
+interface NavItem { to: string; label: string; match?: string[] }
+
+/** The single route-to-navbar-item mapping. Prefixes match whole path segments: "/analysis/x" matches "/analysis", "/analyzer" does not. */
+export function isNavActive(item: NavItem, pathname: string): boolean {
+  return (item.match ?? [item.to]).some((m) => (m === '/' ? pathname === '/' : pathname === m || pathname.startsWith(`${m}/`)));
+}
 
 const GUEST_LINKS: NavItem[] = [
-  { to: '/', label: COPY.nav.home, end: true },
-  { to: '/scan', label: COPY.nav.liveDetection },
+  { to: '/', label: COPY.nav.home },
+  { to: '/scan', label: COPY.nav.liveDetection, match: ['/scan', '/detect-result'] },
   { to: '/how-it-works', label: COPY.nav.howItWorks },
   { to: '/about', label: COPY.nav.about },
 ];
 
 const USER_LINKS: NavItem[] = [
   { to: DEFAULT_AFTER_LOGIN, label: COPY.nav.dashboard },
-  { to: NEW_ANALYSIS_PATH, label: COPY.nav.newAnalysis },
+  { to: NEW_ANALYSIS_PATH, label: COPY.nav.newAnalysis, match: [NEW_ANALYSIS_PATH, '/analysis'] },
   { to: '/history', label: COPY.nav.history },
   { to: '/chat', label: COPY.nav.consultation },
 ];
 
-const desktopLink = ({ isActive }: { isActive: boolean }) =>
+const desktopLink = (isActive: boolean) =>
   `whitespace-nowrap rounded-btn px-3 py-2 text-label-md transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-600 hover:bg-tint hover:text-ink-900'}`;
 
-const drawerLink = ({ isActive }: { isActive: boolean }) =>
+const drawerLink = (isActive: boolean) =>
   `rounded-btn px-3 py-3 text-body-lg font-medium transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-700 hover:bg-tint'}`;
 
 export function Navbar() {
@@ -65,7 +71,7 @@ export function Navbar() {
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label={COPY.nav.main}>
           {links.map((l) => (
-            <NavLink key={l.to + l.label} to={l.to} end={l.end} className={desktopLink}>{l.label}</NavLink>
+            <Link key={l.to + l.label} to={l.to} className={desktopLink(isNavActive(l, loc.pathname))} aria-current={isNavActive(l, loc.pathname) ? 'page' : undefined}>{l.label}</Link>
           ))}
         </nav>
 
@@ -133,7 +139,7 @@ export function Navbar() {
             </div>
             <nav className="flex flex-col gap-1" aria-label={COPY.nav.main}>
               {links.map((l) => (
-                <NavLink key={l.to + l.label} to={l.to} end={l.end} className={drawerLink}>{l.label}</NavLink>
+                <Link key={l.to + l.label} to={l.to} className={drawerLink(isNavActive(l, loc.pathname))} aria-current={isNavActive(l, loc.pathname) ? 'page' : undefined}>{l.label}</Link>
               ))}
             </nav>
             <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">

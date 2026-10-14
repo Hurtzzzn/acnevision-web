@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Download, Droplets, Eye, EyeOff, Focus, Hand, Stethoscope, Sun, ZoomIn, ZoomOut, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, Check, ChevronDown, Download, Droplets, Eye, EyeOff, Focus, Hand, Lightbulb, Stethoscope, Sun, type LucideIcon } from 'lucide-react';
 import { COPY, leadsWithDoctor } from '@acnevision/shared';
 import { downloadDetectionPng } from '../lib/export';
-import { summarizeConfidence } from '../lib/detection';
+import { isLowConfidence, summarizeConfidence } from '../lib/detection';
 import { errMessage } from '../lib/errors';
+import { useAuth } from '../store/auth';
 import { useScan } from '../store/scan';
 import { useUi } from '../store/ui';
 import { DetectedImage, DetectionList } from '../components/DetectedImage';
-import { fitLesions, ToolButton, ZOOM_STEPS } from '../components/PhotoTools';
+import { fitLesions, ToolButton, ZoomControl, ZOOM_STEPS } from '../components/PhotoTools';
 import { SeveritySummary } from '../components/SeveritySummary';
 import { UpgradeCard } from '../components/UpgradeCard';
 import { Disclaimer, EmptyState } from '../components/ui';
@@ -19,6 +20,7 @@ const TIP_ICONS: LucideIcon[] = [Droplets, Hand, Sun];
 export default function DetectResult() {
   const { detection, imageUrl } = useScan();
   const toast = useUi((s) => s.toast);
+  const user = useAuth((s) => s.user);
   const [showBoxes, setShowBoxes] = useState(true);
   const [zoomIdx, setZoomIdx] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -36,7 +38,12 @@ export default function DetectResult() {
   const fit = hasLesions ? fitLesions(detection.lesions) : null;
   const confidence = summarizeConfidence(detection.lesions);
   const toggleSelect = (idx: number) => { setFocus(null); setSelected((cur) => (cur === idx ? null : idx)); };
-  const stepZoom = (delta: number) => { setFocus(null); setZoomIdx((i) => i + delta); };
+  const stepZoom = (delta: number) => { setFocus(null); setZoomIdx((i) => Math.min(ZOOM_STEPS.length - 1, Math.max(0, i + delta))); };
+  // Polite announcement for screen readers when a row or chip is picked; visually it is only a highlight and a scroll.
+  const selectedLesion = selected == null ? null : detection.lesions.find((l) => l.idx === selected);
+  const selectionNote = selectedLesion
+    ? R.selectedAnnounce(selectedLesion.idx + 1, Math.round(selectedLesion.det_confidence * 100), isLowConfidence(selectedLesion))
+    : '';
   const focusLesions = () => {
     if (!fit) return;
     setZoomIdx(fit.zoomIdx);
@@ -56,6 +63,7 @@ export default function DetectResult() {
           {doctorFirst && <>{R.doctorLead} </>}
           {detection.advice}
         </p>
+        {doctorFirst && <p className="mt-2 text-body-md">{R.doctorFirstStep}</p>}
       </div>
     </div>
   );
@@ -92,6 +100,19 @@ export default function DetectResult() {
     </div>
   );
 
+  // Without lesions there is nothing for a doctor note to explain: one light, useful step instead.
+  const lightStep = (
+    <div className="card flex gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-primary-50 text-primary-600" aria-hidden>
+        <Lightbulb className="h-4 w-4" />
+      </span>
+      <div>
+        <h3 className="text-headline-sm">{R.emptyStepTitle}</h3>
+        <p className="mt-1 text-body-md">{R.emptyStep}</p>
+      </div>
+    </div>
+  );
+
   async function download() {
     try {
       await downloadDetectionPng(imageUrl!, detection!);
@@ -106,7 +127,7 @@ export default function DetectResult() {
         <h1 className="text-headline-md sm:text-headline-lg">{R.title}</h1>
         {/* With no lesions the empty state carries the single retry action */}
         {hasLesions && (
-          <Link to="/scan" className="btn-outline shrink-0">
+          <Link to="/scan" className="btn-outline min-h-11 shrink-0">
             <ArrowLeft className="h-4 w-4" aria-hidden />
             <span className="sm:hidden">{R.anotherShort}</span>
             <span className="hidden sm:inline">{R.another}</span>
@@ -122,24 +143,13 @@ export default function DetectResult() {
         <div className="card overflow-hidden !p-0">
           {hasLesions && (
             <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 md:px-6" role="toolbar" aria-label={R.toolbarLabel}>
-              {/* What the photo shows (boxes, focus) on the left; size and export on the right. Both groups carry text, so no icon-only mystery */}
-              <div className="flex items-center gap-2">
-                <ToolButton label={R.boxesLabel} pressed={showBoxes} onClick={() => setShowBoxes((v) => !v)}>
-                  {showBoxes ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
-                  {R.boxesLabel}
-                </ToolButton>
-                <ToolButton label={R.focus} disabled={!fit || (fit.zoomIdx === 0 && zoomIdx === 0)} onClick={focusLesions}>
-                  <Focus className="h-4 w-4" aria-hidden /> {R.focusShort}
-                </ToolButton>
-              </div>
-              <div className="flex items-center gap-2">
-                <ToolButton label={R.zoomOut} disabled={zoomIdx === 0} onClick={() => stepZoom(-1)}>
-                  <ZoomOut className="h-4 w-4" aria-hidden />
-                </ToolButton>
-                <span className="tnum w-11 text-center text-label-md text-ink-600" aria-live="polite">{Math.round(zoom * 100)}%</span>
-                <ToolButton label={R.zoomIn} disabled={zoomIdx === ZOOM_STEPS.length - 1} onClick={() => stepZoom(1)}>
-                  <ZoomIn className="h-4 w-4" aria-hidden />
-                </ToolButton>
+              {/* Three controls: boxes on/off, one compact zoom control (pinch on the photo does the same), and export. */}
+              <ToolButton label={R.boxesLabel} pressed={showBoxes} onClick={() => setShowBoxes((v) => !v)}>
+                {showBoxes ? <Eye className="h-4 w-4" aria-hidden /> : <EyeOff className="h-4 w-4" aria-hidden />}
+                {R.boxesLabel}
+              </ToolButton>
+              <div className="flex flex-wrap items-center gap-2">
+                <ZoomControl zoomIdx={zoomIdx} onStep={stepZoom} />
                 <ToolButton label={R.download} onClick={download}>
                   <Download className="h-4 w-4" aria-hidden /> {R.download}
                 </ToolButton>
@@ -150,7 +160,9 @@ export default function DetectResult() {
           <DetectedImage
             src={imageUrl}
             lesions={detection.lesions}
-            alt={R.imageAlt}
+            alt={R.imageAlt(total_lesions)}
+            frameLabel={R.zoomFrameLabel}
+            onPinch={stepZoom}
             showBoxes={showBoxes}
             zoom={zoom}
             activeIdx={activeIdx}
@@ -165,7 +177,7 @@ export default function DetectResult() {
               <h3 className="text-headline-sm">{COPY.scan.tipsTitle}</h3>
               <ul className="mt-3 space-y-2 text-body-md">
                 {COPY.photoTips.map((t) => (
-                  <li key={t} className="flex gap-2"><span className="text-success" aria-hidden>✓</span>{t}</li>
+                  <li key={t} className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden />{t}</li>
                 ))}
               </ul>
             </div>
@@ -173,7 +185,7 @@ export default function DetectResult() {
 
           {hasLesions && (
             <>
-              <p className="px-4 pt-3 text-body-sm text-ink-500 md:px-6">{R.legend}</p>
+              <p className="px-4 pt-2 text-body-sm text-ink-600 md:px-6">{R.legend}</p>
               <div className="mx-4 mt-4 border-t border-border pb-4 pt-4 md:mx-6 md:pb-6">
                 <div>
                   <h3 className="text-headline-sm">
@@ -183,18 +195,23 @@ export default function DetectResult() {
                       aria-expanded={listOpen}
                       aria-controls="lesion-list"
                       onClick={() => setListOpen((o) => !o)}
-                      className="flex items-center gap-1.5 rounded-control lg:hidden"
+                      className="flex min-h-11 items-center gap-1.5 rounded-control lg:hidden"
                     >
                       {R.listTitle} ({total_lesions})
-                      <ChevronDown className={`h-4 w-4 text-ink-500 transition-transform ${listOpen ? 'rotate-180' : ''}`} aria-hidden />
+                      <ChevronDown className={`h-4 w-4 text-ink-500 motion-safe:transition-transform ${listOpen ? 'rotate-180' : ''}`} aria-hidden />
                     </button>
                     <span className="hidden lg:inline">{R.listTitle}</span>
                   </h3>
-                  <p className="mt-1 text-body-sm text-ink-500">
-                    {confidence.count} {R.lesionUnit}, {R.avgConfidence} {confidence.avgPct}%
-                    {confidence.lowCount > 0 && <>, {confidence.lowCount} {R.lowConfidence}</>}
+                  <p className="mt-1 text-body-md text-ink-600">
+                    {R.listSummary(confidence.avgPct, confidence.lowCount)}
                   </p>
-                  <p className="text-body-sm text-ink-500">{R.confidenceExplain}</p>
+                  <p className="mt-1 text-body-md text-ink-600">{R.listNote}</p>
+                  {/* Folded in from the toolbar: zooms to the cluster of lesions. Disabled with a stated reason when it would do nothing. */}
+                  <div className="mt-3">
+                    <ToolButton label={R.focusHint} disabled={!fit || (fit.zoomIdx === 0 && zoomIdx === 0)} disabledReason={R.focusDisabledReason} onClick={focusLesions}>
+                      <Focus className="h-4 w-4" aria-hidden /> {R.focus}
+                    </ToolButton>
+                  </div>
                 </div>
                 <div id="lesion-list" className={`mt-2 ${listOpen ? '' : 'hidden lg:block'}`}>
                   <DetectionList
@@ -217,18 +234,26 @@ export default function DetectResult() {
             <EmptyState
               title={R.emptyTitle}
               text={R.emptyText}
-              action={<Link to="/scan" className="btn-primary">{R.emptyAction}</Link>}
+              action={<Link to="/scan" className="btn-primary min-h-11">{R.emptyAction}</Link>}
             />
           )}
 
-          {hasLesions ? adviceCard : <div className="card">{doctorBlock}</div>}
+          {hasLesions ? adviceCard : lightStep}
+
+          {/* Right under the advice, once per page */}
+          <Disclaimer variant="box" />
         </div>
       </div>
 
-      {/* Full-width row under both columns, so the left card never ends above an empty gap */}
-      <Disclaimer variant="box" />
+      <p className="sr-only" aria-live="polite">{selectionNote}</p>
 
-      {detection.upgrade && <UpgradeCard message={detection.upgrade.message} unlocks={detection.upgrade.unlocks} />}
+      {/* Shown by session state, not by the API field: a guest always sees it, a signed-in user never does. The API text is optional. */}
+      {!user && (
+        <UpgradeCard
+          message={detection.upgrade?.message ?? COPY.detect.upgradeMessage}
+          unlocks={detection.upgrade?.unlocks ?? COPY.detect.upgradeUnlocks}
+        />
+      )}
     </div>
   );
 }

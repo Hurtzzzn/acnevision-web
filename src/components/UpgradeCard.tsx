@@ -20,12 +20,12 @@ export function UpgradeCard({ message, unlocks, redirectTo = NEW_ANALYSIS_PATH }
   const lead = message && !repeatsTitle(message, COPY.upgrade.title) ? message : COPY.upgrade.lead;
   return (
     <section
-      className="rounded-card border border-primary-200 bg-primary-50 p-4 md:p-6 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-center lg:gap-10"
+      className="rounded-card border border-border bg-tint p-4 md:p-6 lg:grid lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-center lg:gap-10"
       aria-labelledby="upgrade-title"
     >
       <div className="space-y-5">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-primary-600 text-white" aria-hidden>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn border border-primary-200 bg-primary-50 text-primary-600" aria-hidden>
             <Lock className="h-5 w-5" />
           </span>
           <div>
