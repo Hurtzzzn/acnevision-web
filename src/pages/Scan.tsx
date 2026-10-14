@@ -9,6 +9,7 @@ import { useScan } from '../store/scan';
 import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { ErrorBox, Spinner } from '../components/ui';
 import { PhotoInput, type PhotoMethod } from '../components/PhotoInput';
+import { PhotoTips } from '../components/PhotoTips';
 
 const STEP_MS = 800;
 
@@ -105,14 +106,7 @@ export default function Scan() {
         </div>
 
         {/* In camera mode the live guide already says this, so on small screens the tips only show for uploads */}
-        <aside className={`card h-fit bg-primary-50 ${mode === 'camera' ? 'hidden lg:block' : ''}`}>
-          <h3 className="mb-3">{COPY.scan.tipsTitle}</h3>
-          <ul className="space-y-2 text-body-md">
-            {COPY.photoTips.map((t) => (
-              <li key={t} className="flex gap-2"><Check className="mt-1 h-4 w-4 shrink-0 text-primary-600" aria-hidden />{t}</li>
-            ))}
-          </ul>
-        </aside>
+        <PhotoTips title={COPY.scan.tipsTitle} className={`h-fit ${mode === 'camera' ? 'hidden lg:block' : ''}`} />
       </div>
     </div>
   );

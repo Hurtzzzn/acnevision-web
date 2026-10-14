@@ -82,45 +82,44 @@ export default function Result() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="max-w-2xl">
-          <h1>{R.title}</h1>
-          <p className="mt-1">{R.subtitle}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-primary" onClick={save} disabled={saving || !!savedScanId}>
-            {savedScanId
-              ? <><Check className="h-4 w-4" aria-hidden /> {R.saved}</>
-              : <><Bookmark className="h-4 w-4" aria-hidden /> {saving ? R.saving : R.save}</>}
-          </button>
-          <button className="btn-outline" onClick={exportPdf} disabled={exporting}>
-            <FileDown className="h-4 w-4" aria-hidden /> {R.downloadPdf}
-          </button>
-        </div>
+      <header className="max-w-2xl">
+        <h1>{R.title}</h1>
+        <p className="mt-1">{R.subtitle}</p>
       </header>
 
       <ResultView
         analysis={analysis}
         imageUrl={imageUrl}
+        recommendation={
+          <Recommendation
+            text={recommendation?.recommendation ?? null}
+            isFallback={recommendation?.is_fallback}
+            loading={recLoading}
+            severity={analysis.classification?.severity ?? null}
+          />
+        }
         bottom={
           <>
-            <Recommendation
-              text={recommendation?.recommendation ?? null}
-              isFallback={recommendation?.is_fallback}
-              loading={recLoading}
-              severity={analysis.classification?.severity ?? null}
-            />
             <ChatPanel
               conversationId={recommendation?.conversation_id ?? null}
               canFollowUp={!!recommendation?.can_follow_up}
               loading={recLoading}
             />
             <Disclaimer variant="box" />
-            {/* Next steps after reading the result; the navbar already offers the same two places */}
+            {/* One main action: save first; once saved, starting a new analysis takes over */}
             <nav aria-label={R.nextLabel} className="flex flex-wrap items-center gap-3">
-              <Link to={NEW_ANALYSIS_PATH} className="btn-outline">{R.again}</Link>
-              <Link to="/history" className="rounded px-2 py-2 text-label-md text-primary-600 hover:underline">{R.viewHistory}</Link>
+              <button className={savedScanId ? 'btn-outline' : 'btn-primary'} onClick={save} disabled={saving || !!savedScanId}>
+                {savedScanId
+                  ? <><Check className="h-4 w-4" aria-hidden /> {R.saved}</>
+                  : <><Bookmark className="h-4 w-4" aria-hidden /> {saving ? R.saving : R.save}</>}
+              </button>
+              <Link to={NEW_ANALYSIS_PATH} className={savedScanId ? 'btn-primary' : 'btn-outline'}>{R.again}</Link>
+              <button className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 text-label-md text-primary-600 hover:underline disabled:opacity-50" onClick={exportPdf} disabled={exporting}>
+                <FileDown className="h-4 w-4" aria-hidden /> {R.downloadPdf}
+              </button>
+              {savedScanId && <Link to="/history" className="inline-flex min-h-11 items-center rounded-control px-2 text-label-md text-primary-600 hover:underline">{R.viewHistory}</Link>}
             </nav>
+            {!savedScanId && <p className="-mt-3 text-body-sm text-ink-500">{R.saveNote}</p>}
           </>
         }
       />

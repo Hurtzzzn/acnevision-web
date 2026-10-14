@@ -68,65 +68,77 @@ export function ChatInput({ conversationId, onSent, disabled, pending, onPending
   );
 }
 
-/** "Tanya lebih lanjut" panel on the result page: quick-question chips, the follow-up thread, and the input. No disclaimer here (the page shows it once). */
+/**
+ * "Tanya lebih lanjut" on the result page. Collapsed it is one prompt row with three question chips, so the page stays short;
+ * the thread and input open when a chip or the toggle is tapped. The full chat is one link away. No disclaimer here (the page shows it once).
+ */
 export function ChatPanel({ conversationId, canFollowUp, loading = false }: { conversationId: string | null; canFollowUp: boolean; loading?: boolean }) {
   const [thread, setThread] = useState<ChatMessage[]>([]);
   const [pending, setPending] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
   const ready = canFollowUp && !!conversationId;
-  // While the recommendation (and its conversation) is on the way, show the same controls disabled so the panel keeps its height.
   const showControls = ready || loading;
 
-  useEffect(() => { setThread([]); }, [conversationId]);
+  useEffect(() => { setThread([]); setOpen(false); }, [conversationId]);
   // Scroll only the message list (never the page), and only once messages exist.
   useEffect(() => {
     const el = threadRef.current;
     if (el && thread.length) el.scrollTop = el.scrollHeight;
-  }, [thread.length]);
+  }, [thread.length, open]);
 
   return (
     <section className="card" aria-labelledby="chat-title">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary-600" aria-hidden><MessageSquareText className="h-5 w-5" /></span>
-          <div>
-            <h2 id="chat-title" className="text-headline-sm">{COPY.chat.title}</h2>
-            <p className="text-body-md text-ink-600">{COPY.chat.subtitle}</p>
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary-600" aria-hidden><MessageSquareText className="h-5 w-5" /></span>
+          <h2 id="chat-title" className="text-headline-sm">{COPY.chat.title}</h2>
         </div>
-        {ready && <Link to="/chat" className="-my-2 rounded py-2 text-label-md text-primary-600 hover:underline">{COPY.chat.openChat}</Link>}
+        {ready && (
+          <div className="flex items-center gap-1">
+            <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="min-h-11 rounded-control px-2 text-label-md text-primary-600 hover:underline">
+              {open ? COPY.chat.collapse : COPY.chat.write}
+            </button>
+            <Link to="/chat" className="inline-flex min-h-11 items-center rounded-control px-2 text-label-md text-primary-600 hover:underline">{COPY.chat.openChat}</Link>
+          </div>
+        )}
       </div>
 
       {showControls ? (
         <>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="text-body-sm text-ink-500">{COPY.chat.quickLabel}</span>
-            {COPY.chat.quick.map((q) => (
-              <button key={q} type="button" className="rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-label-md text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50" onClick={() => setPending(q)} disabled={!ready}>
-                {q}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {COPY.chat.quickShort.map((label, i) => (
+              <button
+                key={label} type="button" disabled={!ready}
+                className="min-h-11 rounded-full border border-primary-200 bg-primary-50 px-4 text-label-md text-primary-700 transition-colors hover:bg-primary-100 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => { setOpen(true); setPending(COPY.chat.quick[i]); }}
+              >
+                {label}
               </button>
             ))}
           </div>
 
-          {thread.length > 0 && (
-            <div ref={threadRef} className="mt-4 max-h-96 space-y-3 overflow-y-auto" aria-live="polite">
-              {thread.map((m) => <Bubble key={m.id} m={m} />)}
-            </div>
+          {open && ready && (
+            <>
+              {thread.length > 0 && (
+                <div ref={threadRef} className="mt-4 max-h-80 space-y-3 overflow-y-auto" aria-live="polite">
+                  {thread.map((m) => <Bubble key={m.id} m={m} />)}
+                </div>
+              )}
+              <div className="mt-4">
+                <ChatInput
+                  conversationId={conversationId ?? ''}
+                  onSent={(u, a) => setThread((t) => [...t, u, a])}
+                  pending={pending}
+                  placeholder={COPY.chat.placeholder}
+                  onPendingHandled={() => setPending(null)}
+                />
+              </div>
+            </>
           )}
-
-          <div className="mt-4">
-            <ChatInput
-              conversationId={conversationId ?? ''}
-              disabled={!ready}
-              onSent={(u, a) => setThread((t) => [...t, u, a])}
-              pending={pending}
-              placeholder={COPY.chat.placeholder}
-              onPendingHandled={() => setPending(null)}
-            />
-          </div>
         </>
       ) : (
-        <p className="mt-4 text-body-md text-ink-500">{COPY.chat.unavailable}</p>
+        <p className="mt-3 text-body-md text-ink-500">{COPY.chat.unavailable}</p>
       )}
     </section>
   );

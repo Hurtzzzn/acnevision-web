@@ -4,6 +4,7 @@ import type { ScanDetail } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, fmtDate } from '../lib/errors';
 import { useUi } from '../store/ui';
+import { Recommendation } from '../components/Recommendation';
 import { ResultView } from '../components/ResultView';
 import { Disclaimer, ErrorBox, Modal, Spinner } from '../components/ui';
 
@@ -51,14 +52,12 @@ export default function HistoryDetail() {
       <ResultView
         analysis={scan}
         imageUrl={scan.image_url}
-        bottom={
-          <>
-            {scan.recommendation && (
-              <section className="card"><h3 className="mb-2">Rekomendasi AI</h3><p className="whitespace-pre-line text-sm">{scan.recommendation}</p></section>
-            )}
-            <Disclaimer variant="box" />
-          </>
+        recommendation={
+          scan.recommendation ? (
+            <Recommendation text={scan.recommendation} loading={false} severity={scan.classification?.severity ?? null} />
+          ) : undefined
         }
+        bottom={<Disclaimer variant="box" />}
       />
 
       {confirm && (

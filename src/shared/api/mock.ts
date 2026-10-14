@@ -315,12 +315,13 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       // Guest photos are not stored: nothing is kept in `analyses` or localStorage.
       return fakeDetection(image, img.w, img.h, !session());
     },
-    async analyze(image) {
+    async analyze(image, opts) {
       // The real /analyze answers 401 without a token, so the mock does too (docs/05).
       requireUser();
       if (!(ALLOWED_IMAGE_TYPES as readonly string[]).includes(image.type)) throw new ApiRequestError('INVALID_IMAGE', 'File harus berupa gambar JPEG, PNG, atau WEBP.', 400);
       if (image.size > MAX_UPLOAD_BYTES) throw new ApiRequestError('FILE_TOO_LARGE', 'Ukuran file maksimal 10 MB.', 413);
       const [img] = await Promise.all([readImage(image), sleep(1200)]);
+      if (opts?.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
       const result = fakeAnalysis(image, img.w, img.h);
       analyses.set(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });
       rememberPending(result.analysis_id, { result, image: img.dataUrl, thumb: img.thumb });

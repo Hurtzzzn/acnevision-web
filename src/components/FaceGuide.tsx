@@ -11,11 +11,6 @@ const G = COPY.scan.guide;
 /** Detection runs about 12 times a second, not every frame. */
 const DETECT_INTERVAL_MS = 1000 / 12;
 const SAMPLE_SIZE = 24;
-/** Mesh opacity (before the fade factor) and line width: kept thin and faint so it never reads as a heavy wireframe. */
-const MESH_ALPHA = 0.18;
-const MESH_LINE_WIDTH = 0.5;
-/** How much of the mesh fade is taken per detection step (about 0.4 s to vanish). */
-const FADE_STEP = 0.2;
 
 export type GuideStatus = 'loading' | 'ready' | 'unavailable';
 export interface GuideState { status: GuideStatus; ok: boolean }
@@ -48,19 +43,16 @@ const TONE_CLASS: Record<Tone, string> = {
 
 /**
  * Real-time face position guide over the camera: the target oval (it changes color with the status), a single status line
- * that names the first thing to adjust, and an optional thin landmark mesh that is hidden unless the user turns it on. Runs MediaPipe Face Landmarker in the browser (no frame leaves the device). If the model cannot load or run, it
- * reports `unavailable` and renders nothing, so the parent shows its plain oval and the camera keeps working. This component
- * only draws on its own overlay canvas; the photo is taken from the video element (see `frameToBlob`), never from here.
+ * that names the first thing to adjust. Runs MediaPipe Face Landmarker in the browser (no frame leaves the device). If the model
+ * cannot load or run, it reports `unavailable` and renders nothing, so the parent shows its plain oval and the camera keeps
+ * working. It draws no landmarks on the face; the photo is taken from the video element (see `frameToBlob`), never from here.
  */
 export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; onState: (s: GuideState) => void }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
   const [loaded, setLoaded] = useState<LoadedLandmarker | null>(null);
   const [status, setStatus] = useState<GuideStatus>('loading');
   const [checks, setChecks] = useState<GuideChecks>(IDLE_CHECKS);
   const [faceSeen, setFaceSeen] = useState(false);
-  const [showMesh, setShowMesh] = useState(false);
-  const showMeshRef = useRef(showMesh);
-  showMeshRef.current = showMesh;
+  const stage = useRef<HTMLDivElement>(null);
   const onStateRef = useRef(onState);
   onStateRef.current = onState;
 
@@ -80,18 +72,14 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
 
   // Detection loop, throttled to ~12 fps; rAF also pauses it in background tabs.
   useEffect(() => {
-    const cv = canvas.current;
-    const ctx = cv?.getContext('2d');
-    if (!cv || !ctx || !video || !loaded) return;
+    if (!video || !loaded) return;
     const scratch = document.createElement('canvas');
     scratch.width = SAMPLE_SIZE;
     scratch.height = SAMPLE_SIZE;
     const sctx = scratch.getContext('2d', { willReadFrequently: true });
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     let raf = 0;
     let last = 0;
     let lastKey = '';
-    let meshFade = 1;
 
     const publish = (next: GuideChecks, seen: boolean) => {
       const key = [next.lighting, next.position, next.gaze].map((c) => `${c.state}:${c.hint ?? ''}`).join('|') + seen;
@@ -100,18 +88,12 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
 
     const detect = () => {
       const vw = video.videoWidth, vh = video.videoHeight;
-      const dpr = window.devicePixelRatio || 1;
-      const cw = cv.clientWidth, ch = cv.clientHeight;
-      if (cv.width !== Math.round(cw * dpr) || cv.height !== Math.round(ch * dpr)) {
-        cv.width = Math.round(cw * dpr);
-        cv.height = Math.round(ch * dpr);
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, cw, ch);
+      const cw = stage.current?.clientWidth ?? 0, ch = stage.current?.clientHeight ?? 0;
+      if (!cw || !ch) return;
 
       const result = loaded.landmarker.detectForVideo(video, performance.now());
       const face = result.faceLandmarks[0];
-      if (!face) { meshFade = 1; publish(NO_FACE_CHECKS, false); return; }
+      if (!face) { publish(NO_FACE_CHECKS, false); return; }
 
       // Video pixels -> stage pixels: object-cover scaling (the video is cropped to fill the stage), then mirrored like the preview.
       const scale = Math.max(cw / vw, ch / vh);
@@ -132,19 +114,6 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
       };
       publish(next, true);
 
-      // The mesh is off by default and only fades in or out with the toggle.
-      const target = showMeshRef.current ? 1 : 0;
-      meshFade = reduceMotion ? target : Math.max(0, Math.min(1, meshFade + Math.sign(target - meshFade) * FADE_STEP));
-      if (meshFade > 0) {
-        ctx.strokeStyle = `rgba(255,255,255,${MESH_ALPHA * meshFade})`;
-        ctx.lineWidth = MESH_LINE_WIDTH;
-        ctx.beginPath();
-        for (const { start, end } of loaded.mesh) {
-          ctx.moveTo(pts[start].x, pts[start].y);
-          ctx.lineTo(pts[end].x, pts[end].y);
-        }
-        ctx.stroke();
-      }
     };
 
     const tick = (t: number) => {
@@ -154,7 +123,7 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
       try { detect(); } catch { cancelAnimationFrame(raf); setStatus('unavailable'); }
     };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); ctx.clearRect(0, 0, cv.width, cv.height); };
+    return () => cancelAnimationFrame(raf);
   }, [video, loaded]);
 
   const message = statusOf(checks);
@@ -164,22 +133,10 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
   const ovalTone = ok ? 'border-green-500' : faceSeen ? 'border-amber-400' : 'border-white';
   return (
     <>
-      <canvas ref={canvas} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full" />
-      {/* Target oval, 70% of the stage height; the position check uses this same oval (see guideOval) */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+      {/* Target oval, 70% of the stage height; the position check uses this same oval (see guideOval). Also gives the stage size. */}
+      <div ref={stage} className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
         <div className={`aspect-[3/4] h-[70%] rounded-[50%] border-2 border-dashed motion-safe:transition-colors ${ovalTone}`} />
       </div>
-
-      {status === 'ready' && (
-        <button
-          type="button"
-          aria-pressed={showMesh}
-          onClick={() => setShowMesh((v) => !v)}
-          className={`frosted absolute right-2 top-2 z-10 rounded-full px-3 py-1.5 text-label-sm ${showMesh ? 'text-primary-700' : 'text-ink-600'}`}
-        >
-          {G.showMesh}
-        </button>
-      )}
 
       <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10 flex justify-center">
         {status === 'loading' ? (

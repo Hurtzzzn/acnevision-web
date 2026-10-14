@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import Webcam from 'react-webcam';
-import { Camera, ImageUp, Info, ScanFace } from 'lucide-react';
+import { Camera, ImageUp, Info, RefreshCw, ScanFace } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { validatePhoto } from '../lib/photo';
 import { frameToBlob } from '../lib/capture';
@@ -10,14 +10,14 @@ export type PhotoMethod = 'camera' | 'upload';
 
 /*
  * Fixed-height skeleton shared by every photo state (camera, upload, preview, processing), so switching state never moves
- * the content below: a top row, a 4:3 stage, and an action row. Messages and errors overlay the stage instead of adding rows.
+ * the content below: a top row, a stage (3:4 on phones, 4:3 from md), and an action row. Messages and errors overlay the stage instead of adding rows.
  */
 export function FrameTop({ children }: { children?: ReactNode }) {
   return <div className="flex h-11 items-center justify-between gap-2">{children}</div>;
 }
 
 export function FrameStage({ children }: { children?: ReactNode }) {
-  return <div className="relative mt-3 aspect-[4/3] w-full overflow-hidden rounded-card bg-tint">{children}</div>;
+  return <div className="relative mt-3 aspect-[3/4] w-full md:aspect-[4/3] overflow-hidden rounded-card bg-tint">{children}</div>;
 }
 
 export function FrameAction({ children }: { children?: ReactNode }) {
@@ -39,7 +39,6 @@ interface PhotoInputProps {
   disabled?: boolean;
   /** Tab shown first and selected initially. */
   defaultMode?: PhotoMethod;
-  labels?: { camera: string; upload: string };
   /** Show the picked photo with "Ulangi" and "Pakai foto ini"; `onPick` is called only after the user confirms. */
   review?: boolean;
   /** Explain what the camera is used for, and ask for camera access only after the user presses "Buka kamera". */
@@ -52,12 +51,16 @@ interface Picked { file: File; method: PhotoMethod; url: string }
 
 /** Shared camera + upload photo source (guest /scan and logged-in /analyze). Picking a photo never sends it anywhere. */
 export function PhotoInput({
-  onPick, disabled = false, defaultMode = 'camera', labels = { camera: COPY.scan.tabCamera, upload: COPY.scan.tabUpload },
+  onPick, disabled = false, defaultMode = 'camera',
   review = false, cameraGate = false, onModeChange,
 }: PhotoInputProps) {
   const [mode, setMode] = useState<PhotoMethod>(defaultMode);
   const [camError, setCamError] = useState(false);
   const [camReady, setCamReady] = useState(false);
+  // Bumped by "Coba lagi" so the camera asks for access again without reloading the page.
+  const [camKey, setCamKey] = useState(0);
+  // Phones are held upright, so ask for a portrait picture there (matches the 3:4 stage).
+  const [portrait] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
   const [guide, setGuide] = useState<GuideState>({ status: 'loading', ok: false });
@@ -68,7 +71,7 @@ export function PhotoInput({
   const uid = useId();
   const panelId = `${uid}-panel`;
 
-  const active: PhotoMethod = camError ? 'upload' : mode;
+  const active: PhotoMethod = mode;
   const order: PhotoMethod[] = defaultMode === 'upload' ? ['upload', 'camera'] : ['camera', 'upload'];
 
   useEffect(() => { onModeChange?.(active); }, [active, onModeChange]);
@@ -96,6 +99,13 @@ export function PhotoInput({
     }
   }
 
+  function retryCamera() {
+    setError(null);
+    setCamError(false);
+    setCamReady(false);
+    setCamKey((k) => k + 1);
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault(); setDrag(false);
     if (disabled) return;
@@ -104,7 +114,7 @@ export function PhotoInput({
   }
 
   function onTabKey(e: KeyboardEvent) {
-    if (camError || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     e.preventDefault();
     setMode(active === 'camera' ? 'upload' : 'camera');
     document.getElementById(`${uid}-tab-${active === 'camera' ? 'upload' : 'camera'}`)?.focus();
@@ -134,18 +144,24 @@ export function PhotoInput({
   return (
     <div>
       <FrameTop>
-        <div className="inline-flex h-11 gap-1 rounded-btn border border-border bg-tint p-1" role="tablist" aria-label={COPY.scan.tabsLabel} onKeyDown={onTabKey}>
+        <div className="relative inline-grid h-11 grid-cols-2 gap-1 rounded-btn border border-border bg-tint p-1" role="tablist" aria-label={COPY.scan.tabsLabel} onKeyDown={onTabKey}>
+          {/* The active pill slides between the two tabs (transform only); it stays put under reduced motion */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-y-1 left-1 w-[calc((100%-0.75rem)/2)] rounded-control bg-white shadow-card transition-transform duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none"
+            style={{ transform: order.indexOf(active) === 0 ? 'translateX(0)' : 'translateX(calc(100% + 0.25rem))' }}
+          />
           {order.map((m) => {
             const selected = active === m;
             const Icon = m === 'camera' ? Camera : ImageUp;
             return (
               <button
                 key={m} id={`${uid}-tab-${m}`} role="tab" aria-selected={selected} aria-controls={panelId} tabIndex={selected ? 0 : -1}
-                className={`inline-flex h-full items-center gap-2 rounded-control px-3.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? 'bg-white text-ink-900 shadow-card' : 'text-ink-600 hover:text-ink-900'}`}
+                className={`relative z-10 inline-flex h-full items-center justify-center gap-2 rounded-control px-3.5 text-sm font-semibold transition-[color,transform] duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 motion-safe:active:scale-[0.97] ${selected ? 'text-ink-900' : 'text-ink-600 hover:text-ink-900'}`}
                 onClick={() => { setError(null); setMode(m); }}
-                disabled={disabled || (m === 'camera' && camError)}
+                disabled={disabled}
               >
-                <Icon className="h-4 w-4" aria-hidden /> {labels[m]}
+                <Icon className="h-4 w-4" aria-hidden /> {m === 'camera' ? COPY.scan.tabCamera : COPY.scan.tabUpload}
               </button>
             );
           })}
@@ -159,21 +175,23 @@ export function PhotoInput({
               <ScanFace className="h-9 w-9 text-primary-600" aria-hidden />
               <h2 className="text-headline-sm">{COPY.scan.cameraStart.title}</h2>
               <p className="max-w-sm text-body-md text-ink-600">{COPY.scan.cameraStart.body}</p>
-              <button className="btn-primary" onClick={() => setStarted(true)} disabled={disabled}>
-                <Camera className="h-4 w-4" aria-hidden /> {COPY.scan.cameraStart.open}
-              </button>
             </div>
+          ) : active === 'camera' && camError ? (
+            <p role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-5 text-center text-body-md text-ink-600">
+              <Info className="h-9 w-9 text-primary-600" aria-hidden />
+              <span className="max-w-sm">{COPY.scan.cameraDenied}</span>
+            </p>
           ) : active === 'camera' ? (
             <>
               <Webcam
-                ref={cam} audio={false} mirrored screenshotFormat="image/jpeg" screenshotQuality={0.92}
-                videoConstraints={{ facingMode: 'user', width: 1280, height: 960 }}
+                key={camKey} ref={cam} audio={false} mirrored screenshotFormat="image/jpeg" screenshotQuality={0.92}
+                videoConstraints={{ facingMode: 'user', width: portrait ? 960 : 1280, height: portrait ? 1280 : 960 }}
                 onUserMedia={() => setCamReady(true)}
                 onUserMediaError={() => setCamError(true)}
                 className="absolute inset-0 block h-full w-full object-cover"
               />
               {!camReady && (
-                <p className="absolute inset-0 flex items-center justify-center text-body-md text-ink-500" role="status">{COPY.scan.cameraLoading}</p>
+                <p className="absolute inset-0 flex items-center justify-center text-body-md text-ink-600" role="status">{COPY.scan.cameraLoading}</p>
               )}
               {/* Plain oval (70% of frame height) only when the guide cannot run; otherwise FaceGuide draws the one oval, in status colors */}
               {guide.status === 'unavailable' && (
@@ -191,16 +209,9 @@ export function PhotoInput({
               onDrop={onDrop}
               className={`absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-card border-2 border-dashed p-4 text-center ${drag ? 'border-primary-600 bg-primary-50' : 'border-border-strong'}`}
             >
-              {camError ? (
-                <p role="alert" className="flex max-w-md items-start gap-2 text-left text-body-sm text-ink-600">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" aria-hidden />
-                  {COPY.scan.cameraDenied}
-                </p>
-              ) : (
-                <ImageUp className="h-10 w-10 text-primary-600" aria-hidden />
-              )}
+              <ImageUp className="h-10 w-10 text-primary-600" aria-hidden />
               <p className="text-sm">{COPY.scan.uploadTitle}</p>
-              <button className="btn-primary" onClick={() => fileInput.current?.click()} disabled={disabled}>{COPY.scan.uploadPick}</button>
+              <button className="btn-primary min-h-11" onClick={() => fileInput.current?.click()} disabled={disabled}>{COPY.scan.uploadPick}</button>
               <input
                 ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" hidden
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f, 'upload'); e.target.value = ''; }}
@@ -212,8 +223,12 @@ export function PhotoInput({
 
         <FrameAction>
           {gated ? (
-            <button className="text-body-sm font-medium text-primary-700 underline underline-offset-4" onClick={() => { setError(null); setMode('upload'); }} disabled={disabled}>
-              {COPY.scan.cameraStart.orUpload}
+            <button className="btn-primary h-full w-full" onClick={() => setStarted(true)} disabled={disabled}>
+              <Camera className="h-4 w-4" aria-hidden /> {COPY.scan.cameraStart.open}
+            </button>
+          ) : active === 'camera' && camError ? (
+            <button className="btn-primary h-full w-full" onClick={retryCamera} disabled={disabled}>
+              <RefreshCw className="h-4 w-4" aria-hidden /> {COPY.scan.retry}
             </button>
           ) : active === 'camera' ? (
             <button className="btn-primary h-full w-full" onClick={capture} disabled={!camReady || disabled}>

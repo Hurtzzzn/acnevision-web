@@ -80,7 +80,10 @@
 @keyframes drawer-in { from { transform: translateX(100%); } }
 @keyframes drawer-out { to { transform: translateX(100%); } }
 @keyframes menu-in { from { opacity: 0; transform: scale(0.96); } }
+@keyframes soft-in { from { opacity: 0; transform: translateY(6px); } }
 .enter-up { animation: enter-up 560ms var(--ease-out) both; }
+/* One short entrance for side content; --enter-delay staggers siblings by a few tens of ms. Not used for anything that repeats. */
+.enter-soft { animation: soft-in 220ms var(--ease-out) both; animation-delay: var(--enter-delay, 0ms); }
 .enter-hero-img { animation: hero-img-in 700ms var(--ease-out) both; }
 .enter-fade { animation: fade-in 300ms var(--ease-out) both; }
 .overlay-in { animation: fade-in 200ms var(--ease-out) both; }
@@ -96,7 +99,7 @@
   .btn:not(:disabled):hover { translate: 0 -2px; box-shadow: 0 6px 16px -6px rgba(15, 23, 42, 0.22); }
   .btn:not(:disabled):active { translate: 0 0; box-shadow: none; }
 }
-@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } .enter-soft { animation: none; } }
 
 /* Home hero. Floating chips enter one by one (.chip-in on the outer element), then bob slowly (.float-slow on the inner
    one) so the two animations never fight over \`transform\`. Both are transform/opacity only. */

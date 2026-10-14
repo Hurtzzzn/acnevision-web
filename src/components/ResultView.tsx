@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, Focus, ZoomIn, ZoomOut } from 'lucide-react';
 import { COPY, severityMismatch, type AnalyzeResponse } from '@acnevision/shared';
 import { api } from '../lib/runtime';
-import { errMessage, pct } from '../lib/errors';
+import { errMessage } from '../lib/errors';
 import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { useUi } from '../store/ui';
 import { HeatmapKey, LesionList, ProbabilityBars } from './ClassParts';
@@ -20,17 +20,32 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'gradcam', label: R.tabGradcam },
 ];
 
-function Stat({ label, value }: { label: string; value: string }) {
+/** Model name, version and timing: kept out of the main view, folded away by default. */
+function TechDetails({ analysis }: { analysis: AnalyzeResponse }) {
+  const model = analysis.model_info?.classification;
   return (
-    <div className="flex flex-col gap-1 px-3 py-3 lg:flex-row lg:items-baseline lg:justify-between lg:gap-3 lg:px-6">
-      <dt className="text-body-sm text-ink-600 lg:text-body-md">{label}</dt>
-      <dd className="tnum text-label-lg text-ink-900">{value}</dd>
-    </div>
+    <details className="group rounded-card border border-border px-4 py-1 text-body-sm text-ink-600">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 text-label-md text-ink-600 [&::-webkit-details-marker]:hidden">
+        {R.techTitle}
+        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden />
+      </summary>
+      <dl className="space-y-2 pb-3">
+        <div className="flex justify-between gap-3"><dt>{R.statTime}</dt><dd className="tnum text-ink-900">{R.timeValue(analysis.timing_ms.total)}</dd></div>
+        {model?.name && (
+          <div className="flex justify-between gap-3"><dt>{R.modelLabel}</dt><dd className="text-right text-ink-900">{R.modelValue(model.name, model.version)}</dd></div>
+        )}
+      </dl>
+    </details>
   );
 }
 
-/** Full-analysis layout shared by /analysis/:id and /history/:scanId (docs/06 section 4.4b). `bottom` renders full width below. */
-export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeResponse; imageUrl: string; bottom?: ReactNode }) {
+/**
+ * Full-analysis layout shared by /analysis/:id and /history/:scanId (docs/06 section 4.4b).
+ * Order on a phone: photo, summary, `recommendation`, lesion list, technical details, `bottom` (full width, actions last).
+ */
+export function ResultView({ analysis, imageUrl, recommendation, bottom }: {
+  analysis: AnalyzeResponse; imageUrl: string; recommendation?: ReactNode; bottom?: ReactNode;
+}) {
   const { summary, lesions, classification } = analysis;
   const toast = useUi((s) => s.toast);
   const uid = useId();
@@ -90,6 +105,7 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
           text={COPY.noLesion}
           action={<Link to={NEW_ANALYSIS_PATH} className="btn-primary">{R.emptyAction}</Link>}
         />
+        {recommendation}
         {bottom}
       </div>
     );
@@ -109,11 +125,21 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
       : undefined,
   };
 
+  // Summary + probabilities: under the photo below lg, in the sticky right column from lg.
+  const summaryBlock = (className: string, idSuffix: string) => (
+    <div className={`space-y-6 ${className}`}>
+      <SeveritySummary {...summaryProps} className="" />
+      {classification && (
+        <section className="card" aria-labelledby={`${uid}-prob-${idSuffix}`}>
+          <h2 id={`${uid}-prob-${idSuffix}`} className="mb-3 text-headline-sm">{R.probabilitiesTitle}</h2>
+          <ProbabilityBars probabilities={classification.probabilities} selected={classification.severity} />
+        </section>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Below lg the result statement leads, so count and severity are not pushed under the photo */}
-      <SeveritySummary {...summaryProps} className="lg:hidden" />
-
       <div className="grid items-start gap-6 lg:grid-cols-12 xl:grid-cols-[minmax(0,1fr)_20rem]">
         {/* Photo leads: 8 of 12 columns on desktop, all but a 20rem side column from xl, edge to edge on phones. The lesion list sits right under it. */}
         <div className="space-y-6 lg:col-span-8 xl:col-span-1">
@@ -125,7 +151,7 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
                     key={t.id} id={`${uid}-${t.id}`} type="button" role="tab"
                     aria-selected={tab === t.id} aria-controls={`${uid}-panel`} tabIndex={tab === t.id ? 0 : -1}
                     onClick={() => chooseTab(t.id)}
-                    className={`rounded-control px-3 py-2.5 text-label-md transition-colors md:py-1.5 ${tab === t.id ? 'bg-white text-primary-700 shadow-card' : 'text-ink-600 hover:text-ink-900'}`}
+                    className={`min-h-11 rounded-control px-3 text-label-md transition-colors md:min-h-9 ${tab === t.id ? 'bg-white text-primary-700 shadow-card' : 'text-ink-600 hover:text-ink-900'}`}
                   >
                     {t.label}
                   </button>
@@ -167,7 +193,8 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
                 camLoading ? <Spinner label={R.gradcamLoading} /> : (
                   <>
                     <p>{R.gradcamNote}</p>
-                    <HeatmapKey />
+                    <div className="sm:hidden"><HeatmapKey compact /></div>
+                    <div className="hidden sm:block"><HeatmapKey /></div>
                   </>
                 )
               ) : tab === 'boxes' ? (
@@ -175,6 +202,10 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
               ) : null}
             </div>
           </div>
+
+          {summaryBlock('lg:hidden', 'm')}
+
+          {recommendation}
 
             <section className="card" aria-labelledby={`${uid}-list`}>
               {/* Below lg the list is folded (the numbered boxes on the photo already carry it); from lg it is always open */}
@@ -194,32 +225,14 @@ export function ResultView({ analysis, imageUrl, bottom }: { analysis: AnalyzeRe
                 <LesionList lesions={lesions} activeIdx={activeIdx} selectedIdx={selected} onHover={setHovered} onSelect={toggleSelect} />
               </div>
             </section>
+
+          <TechDetails analysis={analysis} />
         </div>
 
-        {/* The summary stays in view while the photo column scrolls, but only where the whole column fits the viewport height */}
-        <div className="space-y-6 lg:top-20 lg:col-span-4 xl:col-span-1 lg:self-start lg:[@media(min-height:860px)]:sticky">
-          <SeveritySummary {...summaryProps} className="hidden lg:block" />
-
-          {classification && (
-            <section className="card" aria-labelledby={`${uid}-prob`}>
-              <h2 id={`${uid}-prob`} className="text-headline-sm">{R.probabilitiesTitle}</h2>
-              <p className="mb-4 mt-1 text-body-sm text-ink-500">{R.probabilitiesNote}</p>
-              <ProbabilityBars probabilities={classification.probabilities} selected={classification.severity} />
-            </section>
-          )}
-
-          {/* One strip below lg; stacked rows in the narrow desktop column */}
-          <dl className={`card grid divide-x divide-border !p-0 lg:grid-cols-1 lg:divide-x-0 lg:divide-y ${classification ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {classification && <Stat label={R.statSeverityConfidence} value={pct(classification.confidence)} />}
-            <Stat label={R.statTime} value={R.timeValue(analysis.timing_ms.total)} />
-          </dl>
-
-          {classification && analysis.model_info?.classification?.name && (
-            <p className="px-1 text-body-sm text-ink-500">
-              {R.modelLine(analysis.model_info.classification.name, analysis.model_info.classification.version)}
-            </p>
-          )}
-        </div>
+        {/* From lg the summary stays in view while the photo and lesion list scroll; it scrolls inside itself if taller than the screen */}
+        <aside className="hidden lg:sticky lg:top-20 lg:col-span-4 lg:block lg:max-h-[calc(100vh-6rem)] lg:-m-1 lg:self-start lg:overflow-y-auto lg:p-1 xl:col-span-1">
+          {summaryBlock('', 'd')}
+        </aside>
       </div>
 
       {bottom}

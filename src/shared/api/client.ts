@@ -51,7 +51,7 @@ export function createApiClient({ baseURL, getToken }: ApiClientOptions): AcneAp
       form.append('source', opts.source ?? 'web');
       form.append('input_method', opts.input_method ?? 'upload');
       form.append('include_gradcam', String(opts.include_gradcam ?? false));
-      return call(() => http.post('/analyze', form));
+      return call(() => http.post('/analyze', form, { signal: opts.signal }));
     },
     async getGradcam(analysisId) {
       const res = await call<{ gradcam_png_base64: string }>(() => http.get(`/analyze/${analysisId}/gradcam`));

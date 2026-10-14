@@ -195,4 +195,6 @@ export interface AnalyzeOptions {
   source?: 'web' | 'mobile';
   input_method?: 'camera' | 'upload';
   include_gradcam?: boolean;
+  /** Lets the caller cancel the request (the Cancel button on the analysis page). */
+  signal?: AbortSignal;
 }

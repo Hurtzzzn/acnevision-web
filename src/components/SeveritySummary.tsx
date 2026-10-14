@@ -52,7 +52,6 @@ export function SeveritySummary({ total, severity, className, model }: {
           </div>
           {model ? (
             <>
-              <p className="text-body-sm text-ink-500">{COPY.severityNoteModel}</p>
               {model.isLowConfidence && (
                 <p className="flex items-center gap-1.5 text-body-sm text-ink-600">
                   <CircleDashed className="h-3.5 w-3.5 shrink-0" aria-hidden /> {COPY.lowConf}

@@ -29,19 +29,18 @@ function withinSegment(severity: Severity, total: number): number {
 export function SeverityScale({ severity, total, large = false }: { severity: Severity; total?: number; large?: boolean }) {
   const active = SEVERITY_ORDER.indexOf(severity);
   const estimate = total !== undefined;
-  const left = estimate ? ((active + withinSegment(severity, total)) / SEVERITY_ORDER.length) * 100 : 0;
+  const left = ((active + (estimate ? withinSegment(severity, total) : 0.5)) / SEVERITY_ORDER.length) * 100;
   const label = estimate ? `${SEVERITY_META[severity].label}, ${total} ${COPY.detectResult.lesionUnit}` : SEVERITY_META[severity].label;
 
   return (
     <div role="img" aria-label={label}>
-      {estimate && (
-        <div className="relative h-2" aria-hidden>
-          <span
-            className="absolute -top-0.5 h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[5px] border-t-[7px] border-x-transparent border-t-ink-600"
-            style={{ left: `${left}%` }}
-          />
-        </div>
-      )}
+      {/* The marker shows the level without relying on color: at the lesion count for the estimate, mid-segment for the AI result */}
+      <div className="relative h-2" aria-hidden>
+        <span
+          className="absolute -top-0.5 h-0 w-0 -translate-x-1/2 -translate-y-full border-x-[5px] border-t-[7px] border-x-transparent border-t-ink-600"
+          style={{ left: `${left}%` }}
+        />
+      </div>
       <div className="mt-1 flex gap-1" aria-hidden>
         {SEVERITY_ORDER.map((s, i) => (
           <span
@@ -55,10 +54,10 @@ export function SeverityScale({ severity, total, large = false }: { severity: Se
           />
         ))}
       </div>
-      <div className="mt-2 flex gap-1" aria-hidden>
+      <div className="mt-2 grid grid-cols-4 gap-1" aria-hidden>
         {SEVERITY_ORDER.map((s, i) => (
-          <div key={s} className="flex-1 text-center">
-            <p className={`${large ? 'text-label-md' : 'text-label-sm'} ${i === active ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>{SEVERITY_META[s].label}</p>
+          <div key={s} className="min-w-0 text-center">
+            <p className={`${large ? 'text-label-md' : 'text-label-sm'} break-words leading-tight ${i === active ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>{SEVERITY_META[s].label}</p>
             {estimate && <p className={`tnum ${large ? 'text-body-md' : 'text-body-sm'} text-ink-500`}>{SEVERITY_RANGE[s]}</p>}
           </div>
         ))}

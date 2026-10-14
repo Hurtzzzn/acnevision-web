@@ -1,52 +1,34 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Crosshair, Layers, Lightbulb, MessageSquareText, RefreshCw, Sparkles, Sun, Tags, UserRound, Wand2 } from 'lucide-react';
+import { Lock, RefreshCw, Sparkles } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
+
 import { useAuth } from '../store/auth';
 import { useScan } from '../store/scan';
 import { FrameAction, FrameStage, FrameTop, PhotoInput, StageAlert, type PhotoMethod } from '../components/PhotoInput';
+import { PhotoTips } from '../components/PhotoTips';
+import { Spinner } from '../components/ui';
 
 const C = COPY.analyze;
-const STEP_MS = 1500;
-const BENEFIT_ICONS = [Crosshair, Tags, Layers, MessageSquareText];
-const TIP_ICONS = [Sun, UserRound, Wand2];
 
-/** Steps taking turns, under the photo. Active state is shown by color and marker only (no weight change), so text never reflows. */
-function Steps({ step }: { step: number }) {
-  return (
-    <ol className="flex h-full flex-col justify-center gap-2">
-      {C.progress.map((label, i) => {
-        const done = i < step;
-        const active = i === step;
-        return (
-          <li key={label} className={`flex items-center gap-3 text-body-md ${active ? 'text-ink-900' : done ? 'text-ink-600' : 'text-ink-500'}`} aria-current={active ? 'step' : undefined}>
-            <span
-              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${done ? 'bg-primary-600 text-white' : active ? 'border-2 border-primary-600' : 'border border-border-strong'}`}
-              aria-hidden
-            >
-              {done ? <Check className="h-3 w-3" /> : active ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-600" /> : null}
-            </span>
-            <span className="min-w-0 flex-1">{label}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
+type View = 'pick' | 'ready' | 'processing';
 
 export default function Analyze() {
   const [photo, setPhoto] = useState<{ file: File; method: PhotoMethod } | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const runId = useRef(0);
+  const abort = useRef<AbortController | null>(null);
+  const card = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const setScan = useScan((s) => s.setScan);
   const remember = useScan((s) => s.remember);
   const userId = useAuth((s) => s.user?.id);
+
+  const view: View = busy && previewUrl ? 'processing' : photo && previewUrl ? 'ready' : 'pick';
 
   useEffect(() => {
     if (!photo) { setPreviewUrl(null); return; }
@@ -55,23 +37,26 @@ export default function Analyze() {
     return () => URL.revokeObjectURL(url);
   }, [photo]);
 
+  // When the card swaps between steps, move focus to the new step's title (or, back at the start, the selected tab).
+  const lastView = useRef<View>(view);
   useEffect(() => {
-    if (!busy) return;
-    setStep(0);
-    const id = setInterval(() => setStep((s) => Math.min(s + 1, C.progress.length - 1)), STEP_MS);
-    return () => clearInterval(id);
-  }, [busy]);
+    if (lastView.current === view) return;
+    lastView.current = view;
+    card.current?.querySelector<HTMLElement>('[data-step-title], [role="tab"][aria-selected="true"]')?.focus();
+  }, [view]);
 
   // Invalidate any in-flight run when the page unmounts.
-  useEffect(() => () => { runId.current += 1; }, []);
+  useEffect(() => () => { runId.current += 1; abort.current?.abort(); }, []);
 
   async function start() {
     if (!photo || busy) return;
     const id = ++runId.current;
+    const controller = new AbortController();
+    abort.current = controller;
     setError(null);
     setBusy(true);
     try {
-      const analysis = await api.analyze(photo.file, { source: 'web', input_method: photo.method, include_gradcam: false });
+      const analysis = await api.analyze(photo.file, { source: 'web', input_method: photo.method, include_gradcam: false, signal: controller.signal });
       if (id !== runId.current) return; // cancelled
       setScan(analysis, URL.createObjectURL(photo.file));
       // Signed-in only (this page sits behind RequireAuth): lets the result survive a refresh in this tab.
@@ -86,6 +71,7 @@ export default function Analyze() {
 
   function cancel() {
     runId.current += 1;
+    abort.current?.abort();
     setBusy(false);
   }
 
@@ -96,33 +82,35 @@ export default function Analyze() {
         <p className="mt-1">{C.subtitle}</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        {/* Camera, preview and processing share one skeleton (top row, 4:3 stage, two action rows), so the card never changes height. */}
-        <div className="card">
-          {busy && previewUrl ? (
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)] lg:gap-6">
+        {/* Camera, preview and processing share one skeleton (top row, stage, two action rows), so the card never changes height. */}
+        <div ref={card} className="card">
+          {view === 'processing' && previewUrl ? (
             <>
               <FrameTop>
-                <p className="text-label-md text-ink-900" role="status">{C.processingLabel}</p>
-                <button className="btn-outline px-3 py-1.5" onClick={cancel}>{C.cancel}</button>
+                <p data-step-title tabIndex={-1} className="text-label-md text-ink-900">{C.processingLabel}</p>
+                <button className="btn-outline h-11 px-4" onClick={cancel}>{C.cancel}</button>
               </FrameTop>
               <FrameStage>
                 <img src={previewUrl} alt={C.processingAlt} className="absolute inset-0 h-full w-full object-cover opacity-90" />
                 <div className="scan-line" aria-hidden />
               </FrameStage>
-              {/* Takes the height of the two action rows below the photo in the other states (44 + 16 + 44), so the card never resizes */}
-              <div className="mt-4 h-[6.5rem]"><Steps step={step} /></div>
+              {/* One honest indicator instead of staged steps; same height as the two action rows in the other views (44 + 16 + 44) */}
+              <div className="mt-4 flex h-[6.5rem] items-center justify-center text-center">
+                <Spinner label={C.processingNote} />
+              </div>
             </>
-          ) : photo && previewUrl ? (
+          ) : view === 'ready' && previewUrl ? (
             <>
               <FrameTop>
-                <p className="flex items-center gap-2 text-label-md text-ink-900"><Check className="h-4 w-4 text-primary-600" aria-hidden /> {C.photoReady}</p>
+                <p data-step-title tabIndex={-1} className="text-body-md text-ink-600">{C.reviewQuestion}</p>
               </FrameTop>
               <FrameStage>
                 <img src={previewUrl} alt={C.previewAlt} className="absolute inset-0 h-full w-full object-contain" />
                 {error && (
                   <StageAlert>
                     <span>{error}</span>
-                    <button className="shrink-0 font-semibold underline" onClick={start}>{COPY.scan.retry}</button>
+                    <button className="min-h-11 shrink-0 rounded-control border border-red-300 bg-white px-4 font-semibold text-red-700 transition-[background-color,transform] duration-200 ease-out hover:bg-red-50 motion-safe:active:scale-[0.97]" onClick={start}>{COPY.scan.retry}</button>
                   </StageAlert>
                 )}
               </FrameStage>
@@ -131,55 +119,44 @@ export default function Analyze() {
                   <RefreshCw className="h-4 w-4" aria-hidden /> {C.changePhoto}
                 </button>
               </FrameAction>
+              <div className="mt-4 h-11">
+                <button className="btn-primary h-full w-full" onClick={start}>
+                  <Sparkles className="h-4 w-4" aria-hidden /> {C.start}
+                </button>
+              </div>
             </>
           ) : (
-            <PhotoInput onPick={(file, method) => { setError(null); setPhoto({ file, method }); }} defaultMode="upload" labels={{ upload: C.tabUpload, camera: C.tabCamera }} />
-          )}
-
-          {!busy && (
-            <div className="mt-4 h-11">
-              <button className="btn-primary h-full w-full" onClick={start} disabled={!photo}>
-                <Sparkles className="h-4 w-4" aria-hidden /> {C.start}
-              </button>
-            </div>
+            <PhotoInput onPick={(file, method) => { setError(null); setPhoto({ file, method }); }} defaultMode="camera" cameraGate />
           )}
         </div>
 
-        <div className="space-y-6">
-          <section className="card" aria-labelledby="benefits-title">
-            <h2 id="benefits-title" className="text-h3">{C.benefitsTitle}</h2>
-            <ul className="mt-4 space-y-4">
-              {C.benefits.map((b, i) => {
-                const Icon = BENEFIT_ICONS[i];
-                return (
-                  <li key={b.title} className="flex gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn bg-primary-50 text-primary-600" aria-hidden><Icon className="h-4 w-4" /></span>
-                    <div>
-                      <p className="font-semibold text-ink-900">{b.title}</p>
-                      <p className="text-body-md text-ink-600">{b.text}</p>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+        {/* Plain typography, no cards, top-aligned with the camera card. It follows its own content height; the camera card keeps roughly the same share of the width as on the guest scan page. */}
+        <div className="flex max-w-[24rem] flex-col gap-8">
+          <div className="enter-soft">
+            <PhotoTips plain title={C.tipsTitle} items={COPY.photoTips.slice(0, 3)} />
+          </div>
 
-          <section className="card bg-primary-50" aria-labelledby="tips-title">
-            <h2 id="tips-title" className="flex items-center gap-2 text-h3"><Lightbulb className="h-5 w-5 text-primary-600" aria-hidden /> {C.tipsTitle}</h2>
-            <ul className="mt-4 space-y-3">
-              {C.tips.map((t, i) => {
-                const Icon = TIP_ICONS[i];
+          <section aria-labelledby="after-title">
+            <h2 id="after-title" className="enter-soft text-base font-semibold text-ink-900" style={{ '--enter-delay': '40ms' } as CSSProperties}>{C.afterTitle}</h2>
+            <ol className="enter-soft relative mt-3 flex flex-col gap-3.5" style={{ '--enter-delay': '70ms' } as CSSProperties}>
+              {/* One hairline behind every number, from the first circle's center to the last circle */}
+              <span className="absolute bottom-0 left-[11.5px] top-3 z-0 w-px bg-border-strong" aria-hidden />
+              {C.afterSteps.map((step, i) => {
+                const last = i === C.afterSteps.length - 1;
                 return (
-                  <li key={t.title} className="flex gap-3">
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" aria-hidden />
-                    <div>
-                      <p className="font-semibold text-ink-900">{t.title}</p>
-                      <p className="text-body-md text-ink-600">{t.text}</p>
-                    </div>
+                  <li key={step.title} className="relative pl-10">
+                    <span className="tnum absolute left-0 top-0 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-border-strong bg-white text-label-sm text-ink-700" aria-hidden>{i + 1}</span>
+                    {/* The last step's text is taller than its circle: hide the line below the circle */}
+                    {last && <span className="absolute bottom-0 left-0 top-6 z-10 w-6 bg-white" aria-hidden />}
+                    <p className="text-body-md font-semibold leading-6 text-ink-900">{step.title}</p>
+                    <p className="text-body-sm text-ink-500">{step.text}</p>
                   </li>
                 );
               })}
-            </ul>
+            </ol>
+            <p className="enter-soft mt-6 flex items-start gap-1.5 text-body-sm text-ink-500" style={{ '--enter-delay': '100ms' } as CSSProperties}>
+              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden /> {C.photoNote}
+            </p>
           </section>
         </div>
       </div>
