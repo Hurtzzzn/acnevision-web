@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, Info, Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
-import { USE_MOCK } from '../lib/runtime';
 import { DEFAULT_AFTER_LOGIN, NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { LoginPromptModal } from './LoginPromptModal';
 import { Logo, Toasts } from './ui';
@@ -28,17 +27,18 @@ const desktopLink = ({ isActive }: { isActive: boolean }) =>
   `whitespace-nowrap rounded-btn px-3 py-2 text-label-md transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-600 hover:bg-tint hover:text-ink-900'}`;
 
 const drawerLink = ({ isActive }: { isActive: boolean }) =>
-  `rounded-btn px-3 py-3 text-body-lg font-medium ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-700 hover:bg-tint'}`;
+  `rounded-btn px-3 py-3 text-body-lg font-medium transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-700 hover:bg-tint'}`;
 
 export function Navbar() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const loc = useLocation();
   const navigate = useNavigate();
 
-  useEffect(() => { setOpen(false); setMenu(false); }, [loc.pathname]);
+  useEffect(() => { setOpen(false); setClosing(false); setMenu(false); }, [loc.pathname]);
 
   // Close drawer / account menu on Escape; close account menu on outside click.
   useEffect(() => {
@@ -54,6 +54,8 @@ export function Navbar() {
 
   const links = user ? USER_LINKS : GUEST_LINKS;
   const displayName = user ? (user.full_name ?? user.email) : '';
+  // Pointer-initiated close plays the exit animation; Escape and route changes close at once.
+  const closeDrawer = () => setClosing(true);
   const handleLogout = async () => { await logout(); navigate('/'); };
 
   return (
@@ -81,10 +83,10 @@ export function Navbar() {
                   {displayName[0].toUpperCase()}
                 </span>
                 <span className="hidden max-w-[10rem] truncate text-label-md text-ink-900 lg:inline">{displayName}</span>
-                <ChevronDown className={`h-4 w-4 text-ink-500 transition-transform ${menu ? 'rotate-180' : ''}`} aria-hidden />
+                <ChevronDown className={`h-4 w-4 text-ink-500 transition-transform duration-200 ${menu ? 'rotate-180' : ''}`} aria-hidden />
               </button>
               {menu && (
-                <div role="menu" className="absolute right-0 mt-2 w-52 overflow-hidden rounded-btn border border-border bg-white py-1 shadow-float">
+                <div role="menu" className="menu-pop absolute right-0 mt-2 w-52 overflow-hidden rounded-btn border border-border bg-white py-1 shadow-float">
                   {user.role === 'admin' && <Link role="menuitem" className="block px-4 py-2.5 text-body-md text-ink-900 hover:bg-tint" to="/admin">{COPY.nav.adminDashboard}</Link>}
                   <Link role="menuitem" className="block px-4 py-2.5 text-body-md text-ink-900 hover:bg-tint" to="/profile">{COPY.nav.profile}</Link>
                   <button role="menuitem" className="block w-full px-4 py-2.5 text-left text-body-md text-ink-900 hover:bg-tint" onClick={handleLogout}>
@@ -102,7 +104,7 @@ export function Navbar() {
         </div>
 
         <button
-          className="rounded-btn p-2 text-ink-900 transition-colors hover:bg-tint lg:hidden"
+          className="rounded-btn p-2 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95 lg:hidden"
           aria-label={COPY.nav.openMenu}
           aria-expanded={open}
           aria-controls="mobile-drawer"
@@ -114,17 +116,18 @@ export function Navbar() {
 
       {open && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-ink-900/40" onClick={() => setOpen(false)} aria-hidden />
+          <div className={`absolute inset-0 bg-ink-900/40 ${closing ? 'overlay-out' : 'overlay-in'}`} onClick={closeDrawer} aria-hidden />
           <aside
             id="mobile-drawer"
             role="dialog"
             aria-modal="true"
             aria-label={COPY.nav.main}
-            className="absolute right-0 top-0 flex h-full w-[18rem] max-w-[85%] flex-col gap-1 bg-surface p-gutter-sm shadow-float"
+            className={`absolute right-0 top-0 flex h-full w-[18rem] max-w-[85%] flex-col gap-1 bg-surface p-gutter-sm shadow-float ${closing ? 'drawer-out' : 'drawer-in'}`}
+            onAnimationEnd={(e) => { if (closing && e.target === e.currentTarget) { setOpen(false); setClosing(false); } }}
           >
             <div className="mb-2 flex items-center justify-between">
               <Logo />
-              <button className="rounded-btn p-2 text-ink-900 hover:bg-tint" aria-label={COPY.nav.closeMenu} onClick={() => setOpen(false)} autoFocus>
+              <button className="rounded-btn p-2 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95" aria-label={COPY.nav.closeMenu} onClick={closeDrawer} autoFocus>
                 <X className="h-6 w-6" aria-hidden />
               </button>
             </div>
@@ -158,7 +161,7 @@ export function Navbar() {
 export function Footer() {
   const { user } = useAuth();
   const navLinks = user ? USER_LINKS : GUEST_LINKS;
-  const linkCls = 'text-body-md text-ink-600 hover:text-primary-600';
+  const linkCls = 'text-body-md text-ink-600 transition-colors hover:text-primary-600';
   return (
     <footer className="mt-16 border-t border-border bg-tint">
       <div className="mx-auto max-w-container px-gutter-sm py-10 md:px-margin-md xl:px-margin">
@@ -166,7 +169,6 @@ export function Footer() {
           <div>
             <Logo />
             <p className="mt-3 max-w-sm text-body-md text-ink-600">{COPY.footer.tagline}</p>
-            <p className="mt-2 max-w-sm text-body-sm text-ink-500">{COPY.footer.project}</p>
           </div>
           <nav aria-label={COPY.footer.navTitle}>
             <h2 className="text-label-md text-ink-900">{COPY.footer.navTitle}</h2>
@@ -189,14 +191,7 @@ export function Footer() {
           </nav>
         </div>
         <div className="mt-8 border-t border-border pt-5 text-body-sm text-ink-500">
-          <p>{COPY.disclaimer}</p>
-          {USE_MOCK && (
-            <p className="mt-2 flex items-center gap-1.5">
-              <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {COPY.footer.demoNote}
-            </p>
-          )}
-          <p className="mt-2">© {new Date().getFullYear()} {COPY.appName}</p>
+          <p>© {new Date().getFullYear()} {COPY.appName}</p>
         </div>
       </div>
     </footer>

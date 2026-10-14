@@ -8,7 +8,7 @@ import { useAuth } from '../store/auth';
 import { NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { errMessage, fmtDate } from '../lib/errors';
 import { chronological, firstName, formatDelta, greetingKey, lesionTrend } from '../lib/dashboard';
-import { Disclaimer, EmptyState, ErrorBox, SeverityChip, Spinner } from '../components/ui';
+import { EmptyState, ErrorBox, SeverityChip, Spinner } from '../components/ui';
 
 const C = COPY.dashboard;
 
@@ -146,8 +146,6 @@ export default function Dashboard() {
           </section>
         </>
       )}
-
-      <Disclaimer variant="box" />
     </div>
   );
 }

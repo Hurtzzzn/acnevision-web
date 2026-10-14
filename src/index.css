@@ -27,6 +27,11 @@
   :focus-visible { @apply outline-2 outline-offset-2 outline-primary-600; }
   ::selection { @apply bg-primary-100 text-ink-900; }
 
+  :root {
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
@@ -39,7 +44,7 @@
 
 @layer components {
   .card { @apply rounded-card border border-border bg-surface p-4 shadow-card md:p-6; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-btn px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-btn px-4 py-2.5 text-sm font-semibold transition motion-safe:active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100; transition-property: color, background-color, border-color, opacity, box-shadow, transform, translate; transition-duration: 200ms; }
   .btn-primary { @apply btn bg-primary-600 text-white hover:bg-primary-700; }
   .btn-outline { @apply btn border border-border bg-white text-ink-900 hover:bg-primary-50; }
   .btn-danger { @apply btn bg-danger text-white hover:bg-red-700; }
@@ -61,6 +66,49 @@
   .inset-panel { @apply rounded-btn bg-tint p-4; }
   /* Soft medical disclaimer: light blue, 4px accent strip */
   .disclaimer { @apply rounded-btn border border-primary-200 border-l-4 border-l-primary-600 bg-primary-50 px-[18px] py-3.5 text-body-md text-primary-800; }
+}
+
+/* Entrance and hover motion. Opacity/transform/translate/box-shadow only, so nothing ever moves layout. Hover lift uses
+   the individual `translate` property so it never fights the `transform` used by reveal and press-scale. Reduced motion
+   shows the final state at once (the global rule above shrinks durations; `.reveal` is additionally forced visible). */
+@keyframes enter-up { from { opacity: 0; transform: translateY(16px); } }
+@keyframes hero-img-in { from { opacity: 0; transform: scale(0.97); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes drawer-in { from { transform: translateX(100%); } }
+@keyframes drawer-out { to { transform: translateX(100%); } }
+@keyframes menu-in { from { opacity: 0; transform: scale(0.96); } }
+.enter-up { animation: enter-up 560ms var(--ease-out) both; }
+.enter-hero-img { animation: hero-img-in 700ms var(--ease-out) both; }
+.enter-fade { animation: fade-in 300ms var(--ease-out) both; }
+.overlay-in { animation: fade-in 200ms var(--ease-out) both; }
+.overlay-out { animation: fade-out 160ms var(--ease-out) both; }
+.drawer-in { animation: drawer-in 240ms var(--ease-drawer) both; }
+.drawer-out { animation: drawer-out 180ms var(--ease-drawer) both; }
+.menu-pop { transform-origin: top right; animation: menu-in 140ms var(--ease-out) both; }
+.reveal { opacity: 0; transform: translateY(24px); transition: opacity 560ms var(--ease-out), transform 560ms var(--ease-out); }
+.reveal[data-shown] { opacity: 1; transform: none; }
+.card-lift { transition: opacity 560ms var(--ease-out), transform 560ms var(--ease-out), translate 250ms var(--ease-out), box-shadow 250ms var(--ease-out); }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .card-lift:hover { translate: 0 -3px; box-shadow: var(--shadow-float); }
+  .btn:not(:disabled):hover { translate: 0 -2px; box-shadow: 0 6px 16px -6px rgba(15, 23, 42, 0.22); }
+  .btn:not(:disabled):active { translate: 0 0; box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
+
+/* Home hero. Floating chips enter one by one (.chip-in on the outer element), then bob slowly (.float-slow on the inner
+   one) so the two animations never fight over \`transform\`. Both are transform/opacity only. */
+@keyframes chip-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } }
+@keyframes float-y { to { transform: translateY(-6px); } }
+.chip-in { animation: chip-in 520ms var(--ease-out) both; }
+.float-slow { animation: float-y 5.5s ease-in-out infinite alternate; will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .float-slow { animation: none; will-change: auto; } }
+/* Fades the cut-out photo into its background: soft bottom and side edges instead of a hard rectangle. */
+.photo-fade {
+  -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent 98%), linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 68%, transparent 98%), linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  mask-composite: intersect;
 }
 
 /* Soft scanning line over the photo while an analysis runs. The element fills its container and only its top 2px is

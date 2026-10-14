@@ -27,6 +27,25 @@ describe('UI copy', () => {
     expect(all).not.toMatch(/5 jenis|lima jenis|5 kelas|kulit bersih|kulit sehat|diagnosis(?! medis)/i);
   });
 
+  it('mentions no course project and no demo mode in visible text', () => {
+    // auth.demoNote is only rendered in dev builds with the mock backend (see DemoHint in Auth.tsx)
+    const visible = strings({ ...COPY, auth: { ...COPY.auth, demoNote: '' } }).join(' | ');
+    expect(visible).not.toMatch(/mata kuliah|proyek kuliah|project teknologi informasi|mode demo|demo/i);
+    expect(COPY.footer).not.toHaveProperty('project');
+    expect(COPY.footer).not.toHaveProperty('demoNote');
+  });
+
+  it('describes how it works in five Indonesian steps that match the home summary', () => {
+    expect(COPY.howItWorks.title).toBe('Cara Kerja');
+    expect(COPY.howItWorks.steps).toHaveLength(5);
+    // the three home steps are the first three detail steps, in the same order
+    COPY.home.steps.forEach((step, i) => {
+      const detail = COPY.howItWorks.steps[i];
+      expect(detail.title.split(' ')[0]).toBe(step.title.split(' ')[0]);
+    });
+    expect(Object.keys(COPY.howItWorks.severityText)).toEqual(['mild', 'moderate', 'severe', 'very_severe']);
+  });
+
   it('keeps the chat placeholder short enough for a phone input', () => {
     expect(COPY.chat.placeholder.length).toBeLessThanOrEqual(28);
   });

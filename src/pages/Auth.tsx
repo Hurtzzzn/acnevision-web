@@ -89,7 +89,8 @@ function Field({
 }
 
 function DemoHint() {
-  if (!USE_MOCK) return null;
+  // Dev only: import.meta.env.DEV is false in production builds, so the sample credentials never ship.
+  if (!USE_MOCK || !import.meta.env.DEV) return null;
   return (
     <p className="rounded-btn bg-tint p-3 text-body-sm text-ink-600">
       {c.demoNote} <b>demo@acnevision.test</b> / demo12345, admin: <b>admin@acnevision.test</b> / admin12345.

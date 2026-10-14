@@ -139,24 +139,32 @@ export const COPY = {
   },
   footer: {
     tagline: 'Deteksi dan analisis jerawat dari foto wajah dengan bantuan AI.',
-    project: 'Proyek mata kuliah Project Teknologi Informasi bersama PT. Dutormasi Membangun Indonesia.',
     navTitle: 'Navigasi',
     accessTitle: 'Akses',
     register: 'Daftar',
-    demoNote: 'Aplikasi sedang berjalan dalam mode demo, sehingga hasil yang tampil adalah contoh.',
   },
   home: {
-    badge: 'Analisis Kulit Bertenaga AI',
     title: 'Kenali Jerawatmu dengan Lebih Mudah',
     subtitle:
       'Ambil atau unggah foto wajah, lihat lokasi jerawat yang terdeteksi, dan dapatkan gambaran tingkat keparahannya dari jumlah lesi.',
     cta: 'Coba Deteksi',
     guestNote: 'Deteksi awal bisa dicoba tanpa akun.',
     heroAlt: 'Wanita menyentuh pipinya yang memperlihatkan beberapa jerawat kecil',
-    severityLevelsTitle: '4 tingkat keparahan',
-    stepsEyebrow: 'Langkah praktis',
+    levelsLead: 'Hasil dalam 4 tingkat keparahan:',
+    preview: {
+      sample: 'Contoh tampilan',
+      lesions: 'Terdeteksi 7 lesi',
+      handwritten: 'Kenali dulu, rawat kemudian.',
+      boxLabel: 'Contoh kotak deteksi pada foto',
+      memberPreviewTitle: 'Contoh hasil setelah masuk',
+    },
+    closing: {
+      title: 'Mulai dari satu foto',
+      text: 'Coba deteksi sekarang tanpa akun. Masuk kapan saja kalau kamu ingin analisis yang lebih lengkap.',
+    },    stepsEyebrow: 'Langkah praktis',
     stepsTitle: 'Cara Kerja',
     stepsIntro: 'Tiga langkah sederhana, langsung dari browser.',
+    stepsMore: 'Lihat selengkapnya',
     steps: [
       {
         title: 'Ambil atau Unggah Foto',
@@ -188,6 +196,45 @@ export const COPY = {
     guestPhotoNote: 'Foto yang dianalisis sebagai tamu tidak disimpan.',
     register: 'Daftar Akun',
     login: 'Sudah punya akun? Masuk',
+  },
+  howItWorks: {
+    title: 'Cara Kerja',
+    intro: 'Lima langkah dari foto sampai rekomendasi perawatan. Tiga langkah pertama bisa kamu coba tanpa akun.',
+    stepLabel: (n: number) => `Langkah ${n}`,
+    steps: [
+      {
+        title: 'Ambil atau Unggah Foto',
+        text: 'Izinkan akses kamera, atau unggah foto wajah dari galeri. Pencahayaan yang cukup dan wajah yang menghadap lurus membantu hasil lebih jelas.',
+      },
+      {
+        title: 'AI Mendeteksi Jerawat',
+        text: 'AI menandai lokasi jerawat pada foto dengan kotak dan menghitung jumlah lesi yang terdeteksi.',
+      },
+      {
+        title: 'Lihat Hasil',
+        text: 'Kamu melihat jumlah lesi dan perkiraan tingkat keparahan yang dihitung dari jumlah lesi tersebut.',
+      },
+      {
+        title: 'Masuk untuk Analisis Lengkap',
+        text: 'Setelah masuk, model AI menilai tingkat keparahan dari seluruh foto, lengkap dengan tingkat keyakinan dan Grad-CAM yang menunjukkan area yang diperhatikan AI.',
+      },
+      {
+        title: 'Dapatkan Rekomendasi',
+        text: 'Asisten AI memberi saran perawatan sesuai hasil analisismu, dan kamu bisa bertanya lebih lanjut.',
+      },
+    ],
+    accessTitle: 'Tanpa akun dan dengan akun',
+    accessIntro: 'Deteksi awal terbuka untuk semua orang. Akun membuka analisis yang lebih lengkap dan menyimpan riwayatmu.',
+    severityTitle: 'Empat tingkat keparahan',
+    severityIntro:
+      'Setelah masuk, model AI menilai tingkat keparahan dari seluruh foto, bukan dari satu jerawat. Tanpa akun, kamu mendapat perkiraan dari jumlah lesi yang terdeteksi.',
+    severityText: {
+      mild: 'Jerawat tidak banyak dan umumnya tidak terlalu meradang.',
+      moderate: 'Jerawat lebih banyak dan mulai tampak tersebar di beberapa area.',
+      severe: 'Jerawat banyak dan lebih sering terasa nyeri atau meradang.',
+      very_severe: 'Jerawat sangat banyak atau meradang luas. Sebaiknya periksakan ke dokter kulit.',
+    },
+    cta: 'Mulai Analisis',
   },
   detect: {
     // Guest detection (no classification). Mock responses reuse these; the real backend sends its own.

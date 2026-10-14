@@ -26,7 +26,7 @@ function withinSegment(severity: Severity, total: number): number {
  * count range. Without it (the AI model's result) only the segment of the model's severity is highlighted: the lesion
  * ranges are the Hayashi estimate and must not sit next to a severity that did not come from the count.
  */
-export function SeverityScale({ severity, total }: { severity: Severity; total?: number }) {
+export function SeverityScale({ severity, total, large = false }: { severity: Severity; total?: number; large?: boolean }) {
   const active = SEVERITY_ORDER.indexOf(severity);
   const estimate = total !== undefined;
   const left = estimate ? ((active + withinSegment(severity, total)) / SEVERITY_ORDER.length) * 100 : 0;
@@ -58,8 +58,8 @@ export function SeverityScale({ severity, total }: { severity: Severity; total?:
       <div className="mt-2 flex gap-1" aria-hidden>
         {SEVERITY_ORDER.map((s, i) => (
           <div key={s} className="flex-1 text-center">
-            <p className={`text-label-sm ${i === active ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>{SEVERITY_META[s].label}</p>
-            {estimate && <p className="tnum text-body-sm text-ink-500">{RANGE[s]}</p>}
+            <p className={`${large ? 'text-label-md' : 'text-label-sm'} ${i === active ? 'font-semibold text-ink-900' : 'text-ink-500'}`}>{SEVERITY_META[s].label}</p>
+            {estimate && <p className={`tnum ${large ? 'text-body-md' : 'text-body-sm'} text-ink-500`}>{RANGE[s]}</p>}
           </div>
         ))}
       </div>

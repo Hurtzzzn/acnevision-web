@@ -1,5 +1,3 @@
-import { Disclaimer } from '../components/ui';
-
 const tech = ['Python', 'Model deteksi objek', 'Model klasifikasi AI', 'FastAPI', 'React', 'React Native', 'Supabase'];
 
 export default function About() {
@@ -29,8 +27,6 @@ export default function About() {
         <h3 className="mb-1">Mitra</h3>
         <p>PT. Dutormasi Membangun Indonesia</p>
       </section>
-
-      <Disclaimer variant="box" />
     </div>
   );
 }

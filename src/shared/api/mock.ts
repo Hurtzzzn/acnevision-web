@@ -82,8 +82,8 @@ function rng(seed: number) {
 
 // Generic names on purpose: the mock must never claim a real model. The real backend sends its own `model_info`.
 const MOCK_MODEL_INFO = {
-  detection: { name: 'Model deteksi (mode demo)', version: 'mock-1.0.0' },
-  classification: { name: 'Model klasifikasi (mode demo)', version: 'mock-1.0.0' },
+  detection: { name: 'Model deteksi', version: 'mock-1.0.0' },
+  classification: { name: 'Model klasifikasi', version: 'mock-1.0.0' },
 };
 
 /** Simulated detector: the same photo always gives the same boxes, so guests and signed-in users see the same count. */

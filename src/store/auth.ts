@@ -72,7 +72,7 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   async loginWithGoogle() {
-    if (!supabase) throw authError('Login Google hanya tersedia dengan Supabase (bukan mode demo).', 'INTERNAL_ERROR');
+    if (!supabase) throw authError('Login Google belum tersedia saat ini.', 'INTERNAL_ERROR');
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
     if (error) throw authError(error.message, 'INTERNAL_ERROR');
   },

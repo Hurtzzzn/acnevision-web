@@ -34,7 +34,8 @@ export default {
         warning: '#F59E0B',
         danger: '#DC2626',
       },
-      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+      // `script` is used once, for the handwritten phrase beside the Home hero photo
+      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], script: ['Caveat', 'cursive'] },
       fontSize: {
         // [size, { lineHeight, letterSpacing, fontWeight }]
         display: ['3rem', { lineHeight: '3.5rem', letterSpacing: '-0.02em', fontWeight: '700' }],
@@ -71,7 +72,10 @@ export default {
       },
       maxWidth: { container: '1280px' },
       transitionDuration: { DEFAULT: '150ms' },
+      transitionTimingFunction: { DEFAULT: 'cubic-bezier(0.22, 1, 0.36, 1)' },
     },
   },
+  // Hover styles apply only on devices that really hover, so taps on touch screens do not leave sticky hover states.
+  future: { hoverOnlyWhenSupported: true },
   plugins: [],
 };

@@ -6,7 +6,6 @@ import { api } from '../lib/runtime';
 import { errMessage } from '../lib/errors';
 import { useAuth } from '../store/auth';
 import { useScan } from '../store/scan';
-import { Disclaimer } from '../components/ui';
 import { FrameAction, FrameStage, FrameTop, PhotoInput, StageAlert, type PhotoMethod } from '../components/PhotoInput';
 
 const C = COPY.analyze;
@@ -185,8 +184,6 @@ export default function Analyze() {
           </section>
         </div>
       </div>
-
-      <Disclaimer />
     </div>
   );
 }
