@@ -90,6 +90,12 @@
 .overlay-out { animation: fade-out 160ms var(--ease-out) both; }
 .drawer-in { animation: drawer-in 240ms var(--ease-drawer) both; }
 .drawer-out { animation: drawer-out 180ms var(--ease-drawer) both; }
+@keyframes sheet-in { from { transform: translateY(100%); } }
+@keyframes msg-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes typing-dot { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+.sheet-in { animation: sheet-in 220ms var(--ease-drawer) both; }
+.msg-in { animation: msg-in 180ms var(--ease-out) both; }
+.typing-dot { animation: typing-dot 1.2s ease-in-out infinite; }
 .menu-pop { transform-origin: top right; animation: menu-in 140ms var(--ease-out) both; }
 .reveal { opacity: 0; transform: translateY(24px); transition: opacity 560ms var(--ease-out), transform 560ms var(--ease-out); }
 .reveal[data-shown] { opacity: 1; transform: none; }

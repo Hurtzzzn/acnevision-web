@@ -1,42 +1,104 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, MessageSquareText, Send } from 'lucide-react';
+import { MessageSquareText, SendHorizontal } from 'lucide-react';
 import { COPY, type ChatMessage } from '@acnevision/shared';
 import { api } from '../lib/runtime';
-import { useUi } from '../store/ui';
 import { Spinner } from './ui';
 
-export function Bubble({ m }: { m: ChatMessage }) {
+/** Assistant text is plain and unboxed; the user's message is a soft bubble. `animate` is only set for messages added in this session. */
+export function Bubble({ m, animate = false }: { m: ChatMessage; animate?: boolean }) {
   const mine = m.role === 'user';
-  return (
-    <div className={`flex gap-2 ${mine ? 'justify-end' : ''}`}>
-      {!mine && <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600"><Bot className="h-4 w-4" aria-label="AI" /></span>}
-      <div className={`max-w-[85%] whitespace-pre-line rounded-2xl px-4 py-2.5 text-sm ${mine ? 'bg-primary-600 text-white' : 'bg-slate-100 text-ink-900'}`}>
-        {m.content}
-        {m.is_fallback && <span className="mt-1 block text-[11px] text-ink-400">rekomendasi standar</span>}
+  const enter = animate ? 'msg-in' : '';
+  if (mine) {
+    return (
+      <div className={`flex justify-end ${enter}`}>
+        <div className="max-w-[85%] whitespace-pre-line break-words rounded-2xl rounded-br-md bg-primary-50 px-4 py-2.5 text-body-md text-ink-900">{m.content}</div>
       </div>
+    );
+  }
+  return (
+    <div className={`max-w-[92%] whitespace-pre-line break-words text-body-md leading-relaxed text-ink-900 ${enter}`}>
+      {m.content}
+      {m.is_fallback && <span className="mt-1 block text-body-sm text-ink-400">{COPY.chat.page.fallbackNote}</span>}
     </div>
   );
 }
 
-/** Shared chat input. `pending` sends a quick question right away (used by the suggestion chips on the result page). */
+export function TypingDots() {
+  return (
+    <div role="status" className="msg-in flex items-center gap-1 py-2" aria-label={COPY.chat.page.typing}>
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="typing-dot h-1.5 w-1.5 rounded-full bg-ink-400" style={{ animationDelay: `${i * 160}ms` }} />
+      ))}
+    </div>
+  );
+}
+
+const canAutoFocus = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: fine)').matches;
+
+/** Auto-growing textarea with a round send button. Enter sends, Shift+Enter adds a line. */
+export function Composer({ value, onChange, onSubmit, busy = false, disabled = false, placeholder = COPY.chat.defaultPlaceholder, inputRef, autoFocus = false }: {
+  value: string; onChange: (v: string) => void; onSubmit: () => void; busy?: boolean; disabled?: boolean;
+  placeholder?: string; inputRef?: RefObject<HTMLTextAreaElement>; autoFocus?: boolean;
+}) {
+  const own = useRef<HTMLTextAreaElement>(null);
+  const ref = inputRef ?? own;
+  const empty = !value.trim();
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [value, ref]);
+  useEffect(() => { if (autoFocus && canAutoFocus()) ref.current?.focus(); }, [autoFocus, ref]);
+
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (!empty && !busy && !disabled) onSubmit();
+  }
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); if (!empty && !busy && !disabled) onSubmit(); }}
+      className="flex items-end gap-2 rounded-2xl border border-border bg-white p-1.5 pl-4 transition-shadow focus-within:border-primary-600 focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.15)]"
+    >
+      <textarea
+        ref={ref} rows={1} maxLength={1000} value={value} placeholder={placeholder} disabled={disabled}
+        aria-label={COPY.chat.inputLabel}
+        onChange={(e) => onChange(e.target.value)} onKeyDown={onKeyDown}
+        className="max-h-40 min-h-11 flex-1 resize-none bg-transparent py-2.5 text-body-md text-ink-900 outline-none placeholder:text-ink-400 focus-visible:outline-none"
+      />
+      <button
+        type="submit" aria-label={COPY.chat.send} disabled={empty || busy || disabled}
+        className="btn-primary h-11 w-11 shrink-0 rounded-full p-0"
+      >
+        {busy ? <Spinner /> : <SendHorizontal className="h-5 w-5" aria-hidden />}
+      </button>
+    </form>
+  );
+}
+
+/** Chat input for the result page. `pending` sends a quick question right away. A failed send shows a friendly retry. */
 export function ChatInput({ conversationId, onSent, disabled, pending, onPendingHandled, placeholder = COPY.chat.defaultPlaceholder }: {
   conversationId: string; onSent: (u: ChatMessage, a: ChatMessage) => void; disabled?: boolean;
   pending?: string | null; onPendingHandled?: () => void; placeholder?: string;
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
-  const toast = useUi((s) => s.toast);
+  const [failedText, setFailedText] = useState<string | null>(null);
 
   async function send(content: string, clearInput: boolean) {
     if (!content || busy) return;
     setBusy(true);
+    setFailedText(null);
     try {
       const res = await api.sendMessage(conversationId, content);
       if (clearInput) setText('');
       onSent(res.user_message, res.assistant_message);
-    } catch (err) {
-      toast(err instanceof Error ? err.message : COPY.chat.sendFailed, 'error');
+    } catch {
+      setFailedText(content);
     } finally {
       setBusy(false);
     }
@@ -49,22 +111,16 @@ export function ChatInput({ conversationId, onSent, disabled, pending, onPending
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending]);
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    send(text.trim(), true);
-  }
-
   return (
-    <form onSubmit={submit} className="flex gap-2">
-      <input
-        className="input" placeholder={placeholder} maxLength={1000}
-        value={text} onChange={(e) => setText(e.target.value)} disabled={disabled || busy}
-        aria-label={COPY.chat.inputLabel}
-      />
-      <button className="btn-primary" disabled={disabled || busy || !text.trim()} aria-label={COPY.chat.send}>
-        {busy ? <Spinner /> : <Send className="h-4 w-4" />}
-      </button>
-    </form>
+    <div className="space-y-2">
+      {failedText && (
+        <p role="alert" className="text-body-sm text-ink-600">
+          {COPY.chat.page.failed}{' '}
+          <button type="button" className="rounded font-medium text-primary-600 hover:underline" onClick={() => send(failedText, false)}>{COPY.chat.page.retry}</button>
+        </p>
+      )}
+      <Composer value={text} onChange={setText} onSubmit={() => send(text.trim(), true)} busy={busy} disabled={disabled} placeholder={placeholder} />
+    </div>
   );
 }
 
