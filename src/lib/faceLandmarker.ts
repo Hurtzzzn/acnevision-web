@@ -2,8 +2,10 @@ import type { FaceLandmarker } from '@mediapipe/tasks-vision';
 
 export interface LoadedLandmarker {
   landmarker: FaceLandmarker;
-  /** Pairs of landmark indexes that make up the face mesh. */
+  /** Pairs of landmark indexes that make up the face mesh (tessellation). */
   mesh: readonly { start: number; end: number }[];
+  /** Outline of the face, eyes, eyebrows and lips, drawn a little firmer than the tessellation. */
+  features: readonly { start: number; end: number }[];
 }
 
 // Self-hosted (public/mediapipe) so the guide works offline after the first visit and no third-party server sees the user.
@@ -31,5 +33,13 @@ export async function loadFaceLandmarker(): Promise<LoadedLandmarker> {
   } catch {
     landmarker = await make('CPU');
   }
-  return { landmarker, mesh: FaceLandmarker.FACE_LANDMARKS_TESSELATION };
+  const features = [
+    ...FaceLandmarker.FACE_LANDMARKS_FACE_OVAL,
+    ...FaceLandmarker.FACE_LANDMARKS_LEFT_EYE,
+    ...FaceLandmarker.FACE_LANDMARKS_RIGHT_EYE,
+    ...FaceLandmarker.FACE_LANDMARKS_LEFT_EYEBROW,
+    ...FaceLandmarker.FACE_LANDMARKS_RIGHT_EYEBROW,
+    ...FaceLandmarker.FACE_LANDMARKS_LIPS,
+  ];
+  return { landmarker, mesh: FaceLandmarker.FACE_LANDMARKS_TESSELATION, features };
 }

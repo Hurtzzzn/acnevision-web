@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { frameToBlob, type CaptureCanvas } from './capture';
+import photoInputSource from '../components/PhotoInput.tsx?raw';
 
 function fakeCanvas() {
   const calls: string[] = [];
@@ -37,6 +38,40 @@ describe('frameToBlob', () => {
     const b = fakeCanvas();
     await frameToBlob(video, { mirrored: false, makeCanvas: () => b.canvas });
     expect(b.calls.some((c) => c.startsWith('scale'))).toBe(false);
+  });
+
+  it('has no path to an overlay: a mesh canvas next to the video is never touched, even when it holds mesh pixels', async () => {
+    // The vitest environment here is node (no DOM), so the stage is modelled with plain objects. The overlay records every
+    // member that is touched, and the video exposes it as a sibling the way the real stage does.
+    const touched: string[] = [];
+    const overlay = new Proxy({ tag: 'mesh-overlay', pixels: 'mesh' }, {
+      get: (_t, prop) => { touched.push(String(prop)); return undefined; },
+    });
+    const stage = { children: [] as unknown[] };
+    const base = { videoWidth: 1280, videoHeight: 960, parentElement: stage };
+    const vid = base as unknown as HTMLVideoElement;
+    stage.children.push(vid, overlay);
+
+    const f = fakeCanvas();
+    await frameToBlob(vid, { makeCanvas: () => f.canvas });
+
+    expect(f.drawn).toHaveLength(1); // the one and only source is the video element
+    expect(f.drawn[0]).toBe(vid);
+    expect(touched).toEqual([]); // the overlay was never read, drawn, or encoded
+  });
+
+  it('cannot be given an overlay: no parameter accepts one, and the source never looks for other elements', () => {
+    expect(frameToBlob.length).toBe(1); // (video, options?) only; options carry mirrored, quality, makeCanvas
+    const src = frameToBlob.toString();
+    for (const lookup of ['querySelector', 'getElementById', 'getElementsBy', 'parentElement', 'parentNode', 'siblings', 'toDataURL', 'getImageData', 'drawImage(overlay']) {
+      expect(src).not.toContain(lookup);
+    }
+    expect(src.match(/drawImage\(/g)).toHaveLength(1);
+  });
+
+  it('is called by PhotoInput with the video element only', () => {
+    const calls = photoInputSource.match(/frameToBlob\([^)]*\)/g) ?? [];
+    expect(calls).toEqual(['frameToBlob(video, { mirrored: true })']);
   });
 
   it('rejects when the video has no frame yet', async () => {
