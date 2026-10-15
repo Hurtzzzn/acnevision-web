@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Trash2 } from 'lucide-react';
-import type { Paginated, ScanListItem, TrendPoint } from '@acnevision/shared';
+import { COPY, type Paginated, type ScanListItem, type TrendPoint } from '@acnevision/shared';
 import { api } from '../lib/runtime';
 import { errMessage, fmtDate, pct } from '../lib/errors';
 import { useUi } from '../store/ui';
@@ -41,7 +41,7 @@ export default function HistoryPage() {
 
   return (
     <div className="space-y-6">
-      <h1>Analysis History</h1>
+      <h1>{COPY.nav.history}</h1>
       {error && <ErrorBox message={error} onRetry={load} />}
       {!data && !error && <Spinner label="Memuat riwayat..." />}
       {data && data.total === 0 && (
@@ -83,7 +83,7 @@ export default function HistoryPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">Lihat</Link>
-                        <button aria-label="Hapus" className="rounded p-2 text-danger hover:bg-red-50" onClick={() => setToDelete(s)}><Trash2 className="h-4 w-4" /></button>
+                        <button aria-label="Hapus" className="rounded p-2 text-danger transition-colors hover:bg-red-50" onClick={() => setToDelete(s)}><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -100,8 +100,8 @@ export default function HistoryPage() {
                   <p className="font-semibold text-ink-900">{fmtDate(s.created_at, true)}</p>
                   <div className="flex items-center gap-2"><SeverityChip severity={s.severity} /><span>{s.total_lesions} jerawat</span></div>
                   <div className="flex gap-2 pt-1">
-                    <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">Lihat</Link>
-                    <button className="btn-outline px-3 py-1.5 text-danger" onClick={() => setToDelete(s)}>Hapus</button>
+                    <Link to={`/history/${s.scan_id}`} className="btn-outline min-h-11 px-3 py-1.5">Lihat</Link>
+                    <button className="btn-outline min-h-11 px-3 py-1.5 text-danger" onClick={() => setToDelete(s)}>Hapus</button>
                   </div>
                 </div>
               </li>

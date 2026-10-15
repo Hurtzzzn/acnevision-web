@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
@@ -110,7 +111,7 @@ export function Navbar() {
         </div>
 
         <button
-          className="rounded-btn p-2 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95 lg:hidden"
+          className="rounded-btn p-2.5 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95 lg:hidden"
           aria-label={COPY.nav.openMenu}
           aria-expanded={open}
           aria-controls="mobile-drawer"
@@ -120,7 +121,8 @@ export function Navbar() {
         </button>
       </div>
 
-      {open && (
+      {/* Portal: the header's backdrop-filter would otherwise become the containing block of this fixed overlay and clip it to the header bar. */}
+      {open && createPortal(
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className={`absolute inset-0 bg-ink-900/40 ${closing ? 'overlay-out' : 'overlay-in'}`} onClick={closeDrawer} aria-hidden />
           <aside
@@ -133,7 +135,7 @@ export function Navbar() {
           >
             <div className="mb-2 flex items-center justify-between">
               <Logo />
-              <button className="rounded-btn p-2 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95" aria-label={COPY.nav.closeMenu} onClick={closeDrawer} autoFocus>
+              <button className="rounded-btn p-2.5 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95" aria-label={COPY.nav.closeMenu} onClick={closeDrawer} autoFocus>
                 <X className="h-6 w-6" aria-hidden />
               </button>
             </div>
@@ -159,7 +161,7 @@ export function Navbar() {
             </div>
           </aside>
         </div>
-      )}
+      , document.body)}
     </header>
   );
 }
@@ -167,7 +169,7 @@ export function Navbar() {
 export function Footer() {
   const { user } = useAuth();
   const navLinks = user ? USER_LINKS : GUEST_LINKS;
-  const linkCls = 'text-body-md text-ink-600 transition-colors hover:text-primary-600';
+  const linkCls = 'inline-flex min-h-11 items-center text-body-md text-ink-600 transition-colors hover:text-primary-600 md:min-h-0';
   return (
     <footer className="mt-16 border-t border-border bg-tint">
       <div className="mx-auto max-w-container px-gutter-sm py-10 md:px-margin-md xl:px-margin">
@@ -178,13 +180,13 @@ export function Footer() {
           </div>
           <nav aria-label={COPY.footer.navTitle}>
             <h2 className="text-label-md text-ink-900">{COPY.footer.navTitle}</h2>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-1 md:mt-3 md:space-y-2">
               {navLinks.map((l) => <li key={l.to + l.label}><Link to={l.to} className={linkCls}>{l.label}</Link></li>)}
             </ul>
           </nav>
           <nav aria-label={COPY.footer.accessTitle}>
             <h2 className="text-label-md text-ink-900">{COPY.footer.accessTitle}</h2>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-1 md:mt-3 md:space-y-2">
               {user ? (
                 <li><Link to="/profile" className={linkCls}>{COPY.nav.profile}</Link></li>
               ) : (

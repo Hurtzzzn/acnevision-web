@@ -1,5 +1,4 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { COPY } from '@acnevision/shared';
 import { DEMO_BOX_SIZE, DEMO_LESIONS, lesionsInZoom, zoomPoint, type LabelSide, type Zoom } from '../../lib/demoLesions';
 import { HeatLayer } from './HeatLayer';
 import hero640 from '../../assets/images/heroine-640.webp';
@@ -111,5 +110,3 @@ export function ZoomBoxes({ zoom, uncertain }: { zoom: Zoom; uncertain?: number 
     </div>
   );
 }
-
-export const SAMPLE_PHOTO_ALT = COPY.home.heroAlt;

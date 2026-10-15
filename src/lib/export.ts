@@ -47,11 +47,6 @@ function download(url: string, filename: string) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-export async function downloadPng(src: string, analysis: AnalyzeResponse) {
-  const c = await renderAnnotatedCanvas(src, analysis);
-  download(c.toDataURL('image/png'), 'acnevision-hasil.png');
-}
-
 /** Guest detection image: neutral boxes numbered 1..n plus a footer strip with the count. No classification. */
 export async function downloadDetectionPng(src: string, detection: DetectResponse) {
   const img = await loadImage(src);

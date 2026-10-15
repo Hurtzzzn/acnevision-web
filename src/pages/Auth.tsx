@@ -319,7 +319,7 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
           hint={isRegister ? <PasswordRule met={values.password.length >= PASSWORD_MIN_LENGTH} /> : undefined}
           onChange={(v) => change('password', v)} onBlur={() => blur('password')}
           labelAside={!isRegister && (
-            <Link to="/reset-password" className="rounded text-label-sm text-primary-600 hover:text-primary-700 hover:underline">
+            <Link to="/reset-password" className="-my-2 inline-flex min-h-11 items-center rounded text-label-sm text-primary-600 hover:text-primary-700 hover:underline">
               {c.fields.forgot}
             </Link>
           )}
@@ -328,7 +328,7 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
               type="button"
               onClick={() => setShowPassword((s) => !s)}
               aria-label={showPassword ? c.fields.hide : c.fields.show}
-              className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-control text-ink-500 transition-colors hover:bg-tint hover:text-ink-900"
+              className="absolute right-0.5 top-1/2 flex h-[42px] w-11 -translate-y-1/2 items-center justify-center rounded-control text-ink-500 transition-colors hover:bg-tint hover:text-ink-900"
             >
               {showPassword ? <EyeOff className="h-[18px] w-[18px]" aria-hidden /> : <Eye className="h-[18px] w-[18px]" aria-hidden />}
             </button>
