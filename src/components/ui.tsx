@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
 import { COPY, SEVERITY_META, type Severity } from '@acnevision/shared';
 import { useUi } from '../store/ui';
+import { useScrollLock } from '../lib/useScrollLock';
 import logo96 from '../assets/images/logo-96.png';
 import logo192 from '../assets/images/logo-192.png';
 
@@ -97,6 +98,7 @@ export function ErrorBox({ message, onRetry }: { message: string; onRetry?: () =
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  useScrollLock();
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.focus();

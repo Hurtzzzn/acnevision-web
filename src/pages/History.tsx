@@ -9,6 +9,7 @@ import { useUi } from '../store/ui';
 import { EmptyState, ErrorBox, Modal, SeverityChip, Spinner } from '../components/ui';
 
 const PAGE_SIZE = 10;
+const H = COPY.history;
 
 export default function HistoryPage() {
   const [page, setPage] = useState(1);
@@ -29,7 +30,7 @@ export default function HistoryPage() {
     if (!toDelete) return;
     try {
       await api.deleteScan(toDelete.scan_id);
-      toast('Riwayat dihapus');
+      toast(H.deleted);
       setToDelete(null);
       load();
     } catch (e) {
@@ -43,14 +44,14 @@ export default function HistoryPage() {
     <div className="space-y-6">
       <h1>{COPY.nav.history}</h1>
       {error && <ErrorBox message={error} onRetry={load} />}
-      {!data && !error && <Spinner label="Memuat riwayat..." />}
+      {!data && !error && <Spinner label={H.loading} />}
       {data && data.total === 0 && (
-        <EmptyState title="Belum ada riwayat" text="Simpan hasil analisis untuk melihatnya di sini." action={<Link to="/scan" className="btn-primary">Mulai Analisis</Link>} />
+        <EmptyState title={H.emptyTitle} text={H.emptyText} action={<Link to="/scan" className="btn-primary">{H.start}</Link>} />
       )}
 
       {trend.length > 1 && (
-        <section className="card" aria-label="Tren jumlah jerawat">
-          <h3 className="mb-3">Tren jumlah jerawat</h3>
+        <section className="card" aria-label={H.trendTitle}>
+          <h3 className="mb-3">{H.trendTitle}</h3>
           <div className="h-44">
             <ResponsiveContainer>
               <LineChart data={trend.map((p) => ({ ...p, label: fmtDate(p.created_at) }))}>
@@ -58,7 +59,7 @@ export default function HistoryPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                 <Tooltip />
-                <Line type="monotone" dataKey="total_lesions" name="Jumlah jerawat" stroke="#2563EB" strokeWidth={2} dot />
+                <Line type="monotone" dataKey="total_lesions" name={H.trendSeries} stroke="#2563EB" strokeWidth={2} dot />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -70,7 +71,7 @@ export default function HistoryPage() {
           <div className="card hidden overflow-x-auto p-0 md:block md:p-0">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-primary-50 text-xs uppercase text-ink-600">
-                <tr>{['Tanggal', 'Foto', 'Keparahan', 'Keyakinan', 'Jumlah Jerawat', 'Aksi'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
+                <tr>{H.columns.map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {data.items.map((s) => (
@@ -82,8 +83,8 @@ export default function HistoryPage() {
                     <td className="px-4 py-3">{s.total_lesions}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">Lihat</Link>
-                        <button aria-label="Hapus" className="rounded p-2 text-danger transition-colors hover:bg-red-50" onClick={() => setToDelete(s)}><Trash2 className="h-4 w-4" /></button>
+                        <Link to={`/history/${s.scan_id}`} className="btn-outline px-3 py-1.5">{H.view}</Link>
+                        <button aria-label={H.delete} className="rounded p-2 text-danger transition-colors hover:bg-red-50" onClick={() => setToDelete(s)}><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -98,30 +99,30 @@ export default function HistoryPage() {
                 {s.thumbnail_url && <img src={s.thumbnail_url} alt="" className="h-16 w-16 rounded-btn object-cover" />}
                 <div className="flex-1 space-y-1 text-sm">
                   <p className="font-semibold text-ink-900">{fmtDate(s.created_at, true)}</p>
-                  <div className="flex items-center gap-2"><SeverityChip severity={s.severity} /><span>{s.total_lesions} jerawat</span></div>
+                  <div className="flex items-center gap-2"><SeverityChip severity={s.severity} /><span>{H.lesionCount(s.total_lesions)}</span></div>
                   <div className="flex gap-2 pt-1">
-                    <Link to={`/history/${s.scan_id}`} className="btn-outline min-h-11 px-3 py-1.5">Lihat</Link>
-                    <button className="btn-outline min-h-11 px-3 py-1.5 text-danger" onClick={() => setToDelete(s)}>Hapus</button>
+                    <Link to={`/history/${s.scan_id}`} className="btn-outline min-h-11 px-3 py-1.5">{H.view}</Link>
+                    <button className="btn-outline min-h-11 px-3 py-1.5 text-danger" onClick={() => setToDelete(s)}>{H.delete}</button>
                   </div>
                 </div>
               </li>
             ))}
           </ul>
 
-          <nav className="flex items-center justify-center gap-3" aria-label="Paginasi">
-            <button className="btn-outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Sebelumnya</button>
-            <span className="text-sm">Halaman {page} dari {totalPages}</span>
-            <button className="btn-outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Berikutnya</button>
+          <nav className="flex items-center justify-center gap-3" aria-label={H.pagination}>
+            <button className="btn-outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>{H.prev}</button>
+            <span className="text-sm">{H.pageOf(page, totalPages)}</span>
+            <button className="btn-outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>{H.next}</button>
           </nav>
         </>
       )}
 
       {toDelete && (
-        <Modal title="Hapus riwayat?" onClose={() => setToDelete(null)}>
-          <p className="mb-5 text-sm">Scan tanggal {fmtDate(toDelete.created_at, true)} beserta fotonya akan dihapus permanen.</p>
+        <Modal title={H.confirmTitle} onClose={() => setToDelete(null)}>
+          <p className="mb-5 text-sm">{H.confirmText(fmtDate(toDelete.created_at, true))}</p>
           <div className="flex gap-3">
-            <button className="btn-outline flex-1" onClick={() => setToDelete(null)}>Batal</button>
-            <button className="btn-danger flex-1" onClick={confirmDelete}>Hapus</button>
+            <button className="btn-outline flex-1" onClick={() => setToDelete(null)}>{H.cancel}</button>
+            <button className="btn-danger flex-1" onClick={confirmDelete}>{H.delete}</button>
           </div>
         </Modal>
       )}

@@ -34,6 +34,10 @@ describe('UI copy', () => {
     expect(COPY.footer).not.toHaveProperty('demoNote');
   });
 
+  it('never calls visitors "tamu" (guest) in visible text', () => {
+    expect(strings(COPY).join(' | ')).not.toMatch(/\btamu\b/i);
+  });
+
   it('describes how it works in five Indonesian steps that match the home summary', () => {
     expect(COPY.howItWorks.title).toBe('Cara Kerja');
     expect(COPY.howItWorks.steps).toHaveLength(5);

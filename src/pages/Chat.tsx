@@ -4,6 +4,7 @@ import { COPY, SEVERITY_META, type ChatMessage, type ConversationItem, type Scan
 import { api } from '../lib/runtime';
 import { errMessage, fmtDate } from '../lib/errors';
 import { conversationTitle, groupByDay } from '../lib/chatList';
+import { useScrollLock } from '../lib/useScrollLock';
 import { useUi } from '../store/ui';
 import { Bubble, Composer, TypingDots } from '../components/ChatPanel';
 import { ErrorBox, Spinner } from '../components/ui';
@@ -145,6 +146,8 @@ export default function Chat() {
     return () => document.removeEventListener('keydown', onKey);
   }, [sheetOpen]);
 
+  useScrollLock(sheetOpen);
+
   const focusInput = () => { if (window.matchMedia?.('(pointer: fine)').matches) inputRef.current?.focus(); };
 
   function startNew() {
@@ -233,7 +236,7 @@ export default function Chat() {
           <div className="md:p-3 md:pb-2">
             <button type="button" className="btn-outline min-h-11 w-full" onClick={startNew}><Plus className="h-4 w-4" aria-hidden /> {T.newChat}</button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-2 md:px-2">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 pb-2 md:px-2">
             {!list && <div className="p-3"><Spinner label={T.loading} /></div>}
             {list?.length === 0 && <p className="p-3 text-body-sm text-ink-500">{T.listEmpty}</p>}
             {groups.map((g) => (

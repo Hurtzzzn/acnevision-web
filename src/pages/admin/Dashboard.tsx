@@ -42,8 +42,8 @@ export default function Dashboard() {
           <ResponsiveContainer>
             <LineChart data={data.series}>
               <CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend />
-              <Line type="monotone" dataKey="guest_scans" name="Guest" stroke="#94A3B8" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="user_scans" name="User" stroke="#2563EB" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="guest_scans" name="Tanpa akun" stroke="#94A3B8" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="user_scans" name="Pengguna" stroke="#2563EB" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

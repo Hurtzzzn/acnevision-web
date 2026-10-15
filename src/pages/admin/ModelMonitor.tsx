@@ -70,14 +70,14 @@ export default function ModelMonitor() {
           </table>
         </section>
 
-        <section className="card"><h3 className="mb-3">Low-confidence rate &amp; avg confidence (indikator drift)</h3>
+        <section className="card"><h3 className="mb-3">Tingkat keyakinan rendah &amp; rata-rata keyakinan (indikator drift)</h3>
           <div className="h-72"><ResponsiveContainer><LineChart data={data.series}>
             <CartesianGrid stroke="#E2E8F0" vertical={false} /><XAxis dataKey="period" tick={{ fontSize: 12 }} />
             <YAxis domain={[0, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={{ fontSize: 12 }} />
             <Tooltip formatter={(v: number) => pct(v, 1)} /><Legend />
             <ReferenceLine y={0.2} stroke="#DC2626" strokeDasharray="5 4" label={{ value: 'Ambang 20%', fontSize: 11, fill: '#DC2626', position: 'insideTopRight' }} />
-            <Line dataKey="low_confidence_rate" name="Low-confidence rate" stroke="#F59E0B" dot={false} strokeWidth={2} />
-            <Line dataKey="avg_confidence" name="Avg confidence" stroke="#16A34A" dot={false} strokeWidth={2} />
+            <Line dataKey="low_confidence_rate" name="Tingkat keyakinan rendah" stroke="#F59E0B" dot={false} strokeWidth={2} />
+            <Line dataKey="avg_confidence" name="Rata-rata keyakinan" stroke="#16A34A" dot={false} strokeWidth={2} />
           </LineChart></ResponsiveContainer></div>
         </section>
       </div>

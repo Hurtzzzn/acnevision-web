@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
+import { useScrollLock } from '../lib/useScrollLock';
 import { DEFAULT_AFTER_LOGIN, NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { LoginPromptModal } from './LoginPromptModal';
 import { Logo, Toasts } from './ui';
@@ -34,7 +35,7 @@ const desktopLink = (isActive: boolean) =>
   `whitespace-nowrap rounded-btn px-3 py-2 text-label-md transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-600 hover:bg-tint hover:text-ink-900'}`;
 
 const drawerLink = (isActive: boolean) =>
-  `rounded-btn px-3 py-3 text-body-lg font-medium transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-700 hover:bg-tint'}`;
+  `flex min-h-12 items-center rounded-btn px-3 py-3 text-body-lg font-medium transition-colors ${isActive ? 'bg-primary-50 text-primary-600' : 'text-ink-700 hover:bg-tint'}`;
 
 export function Navbar() {
   const { user, logout } = useAuth();
@@ -42,6 +43,14 @@ export function Navbar() {
   const [closing, setClosing] = useState(false);
   const [menu, setMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const burgerRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useScrollLock(open);
+  // Return focus to the menu button once the drawer has closed (Escape, backdrop, close button or route change).
+  useEffect(() => {
+    if (wasOpen.current && !open) burgerRef.current?.focus({ preventScroll: true });
+    wasOpen.current = open;
+  }, [open]);
   const loc = useLocation();
   const navigate = useNavigate();
 
@@ -115,6 +124,7 @@ export function Navbar() {
           aria-label={COPY.nav.openMenu}
           aria-expanded={open}
           aria-controls="mobile-drawer"
+          ref={burgerRef}
           onClick={() => setOpen(true)}
         >
           <Menu className="h-6 w-6" aria-hidden />
@@ -130,10 +140,11 @@ export function Navbar() {
             role="dialog"
             aria-modal="true"
             aria-label={COPY.nav.main}
-            className={`absolute right-0 top-0 flex h-full w-[18rem] max-w-[85%] flex-col gap-1 bg-surface p-gutter-sm shadow-float ${closing ? 'drawer-out' : 'drawer-in'}`}
+            className={`absolute right-0 top-0 flex h-dvh w-[min(85%,18rem)] flex-col gap-1 overflow-y-auto overscroll-contain bg-surface px-gutter-sm pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[-8px_0_24px_-12px_rgba(15,23,42,0.18)] ${closing ? 'drawer-out' : 'drawer-in'}`}
             onAnimationEnd={(e) => { if (closing && e.target === e.currentTarget) { setOpen(false); setClosing(false); } }}
           >
-            <div className="mb-2 flex items-center justify-between">
+            {/* Top row: logo left, close button right, same h-16 as the navbar. */}
+            <div className="flex h-16 shrink-0 items-center justify-between">
               <Logo />
               <button className="rounded-btn p-2.5 text-ink-900 transition hover:bg-tint motion-safe:active:scale-95" aria-label={COPY.nav.closeMenu} onClick={closeDrawer} autoFocus>
                 <X className="h-6 w-6" aria-hidden />
