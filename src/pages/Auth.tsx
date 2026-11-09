@@ -9,7 +9,6 @@ import {
   PASSWORD_MIN_LENGTH, validateEmail, validateLoginPassword, validateName, validateNewPassword,
 } from '../lib/authForm';
 import { ErrorBox } from '../components/ui';
-import { Crescent } from '../components/home/Crescent';
 
 type Mode = 'login' | 'register';
 type FieldName = 'name' | 'email' | 'password';
@@ -29,31 +28,17 @@ function useRedirectTo(): string | null {
 
 function AuthCard({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-[30rem] py-2 md:py-8">
-      <div className="card space-y-6 p-6 md:p-8">{children}</div>
+    <div className="w-full px-5 py-4">
+      <div className="space-y-4">{children}</div>
     </div>
   );
 }
 
-/** Desktop: calm brand panel on the left, form card on the right. Mobile: the form only. */
+/** Clean mobile container for auth pages */
 function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto grid w-full max-w-5xl items-stretch gap-6 py-2 md:py-8 lg:grid-cols-[1fr_30rem]">
-      <aside className="relative hidden overflow-hidden rounded-card bg-tint p-10 lg:flex lg:flex-col lg:justify-center">
-        <Crescent className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 opacity-25" />
-        <div className="relative space-y-6">
-          <h2>{c.panel.title}</h2>
-          <ul className="space-y-4">
-            {c.panel.items.map((item) => (
-              <li key={item} className="flex gap-3 text-ink-700">
-                <Check className="mt-1 h-4 w-4 shrink-0 text-primary-600" aria-hidden />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </aside>
-      <div className="card mx-auto w-full max-w-[30rem] space-y-6 p-6 md:p-8 lg:max-w-none">{children}</div>
+    <div className="w-full px-5 py-4">
+      <div className="space-y-4">{children}</div>
     </div>
   );
 }

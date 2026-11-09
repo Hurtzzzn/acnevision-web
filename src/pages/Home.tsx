@@ -1,114 +1,123 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight, Info } from 'lucide-react';
-import { COPY, SEVERITY_META, SEVERITY_ORDER } from '@acnevision/shared';
-import { Disclaimer } from '../components/ui';
-import { Reveal } from '../components/Reveal';
-import { FeatureTabs } from '../components/home/FeatureTabs';
-import { HeroVisual } from '../components/home/HeroVisual';
-import { DetectStepVisual, PhotoStepVisual, ResultStepVisual } from '../components/home/StepVisuals';
-
-const STEP_VISUALS = [PhotoStepVisual, DetectStepVisual, ResultStepVisual];
-
-/** Section rhythm: generous, equal gaps; the tinted and blue sections are rounded panels inside the page container. */
-const SECTION_GAP = 'mt-20 md:mt-28';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Sparkles, ScanFace, TrendingUp, MessageSquare, ShieldCheck } from 'lucide-react';
+import heroineImg from '../assets/images/heroine.png';
+import { MobileHeader } from '../components/mobile/MobileHeader';
+import { useAuth } from '../store/auth';
 
 export default function Home() {
-  const c = COPY.home;
+  const navigate = useNavigate();
+  const { login } = useAuth();
+
+  const handleQuickLogin = async () => {
+    try {
+      await login('demo@acnevision.test', 'demo12345');
+      navigate('/dashboard');
+    } catch {
+      navigate('/login');
+    }
+  };
+
   return (
-    <div>
-      <section
-        aria-labelledby="hero-title"
-        className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-primary-50 via-primary-100/70 to-primary-200/60 px-5 py-8 sm:px-8 md:rounded-[2.5rem] md:px-12 md:py-14 lg:px-16"
-      >
-        <div className="grid items-center gap-10 md:grid-cols-[1.05fr_0.95fr] md:gap-8">
-          <div>
-            <h1
-              id="hero-title"
-              className="enter-up text-[2.5rem] font-bold leading-[1.06] tracking-tight md:text-5xl lg:text-[3.5rem]"
-            >
-              {c.title}
+    <div className="flex-1 flex flex-col justify-between bg-white overflow-y-auto">
+      <div>
+        {/* Top Header */}
+        <MobileHeader onLoginClick={handleQuickLogin} />
+
+        <div className="px-5 pt-2 pb-6 space-y-6">
+          {/* Hero Visual Card */}
+          <div className="relative rounded-[28px] overflow-hidden aspect-[4/3] bg-slate-100 shadow-sm border border-slate-100">
+            <img
+              src={heroineImg}
+              alt="Model AcneVision AI"
+              className="w-full h-full object-cover object-top"
+            />
+
+            {/* Top-left AI badge */}
+            <div className="absolute top-3.5 left-3.5 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm border border-white/50">
+              <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" />
+              <span className="text-[11px] font-semibold text-[#2563EB] tracking-tight">
+                TEKNOLOGI AI, AcneVision
+              </span>
+            </div>
+
+            {/* Bottom-left pill */}
+            <div className="absolute bottom-3.5 left-3.5 bg-white/95 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-sm border border-white/50">
+              <span className="text-xs font-medium text-slate-800">
+                Kulit nyata. Perawatan lebih terarah.
+              </span>
+            </div>
+          </div>
+
+          {/* Heading */}
+          <div className="space-y-2 pt-1">
+            <h1 className="text-[28px] font-extrabold leading-[1.2] text-slate-900 tracking-tight">
+              Kenali kulitmu,
+              <br />
+              <span className="text-[#2563EB]">selangkah lebih baik.</span>
             </h1>
-            <p className="enter-up mt-5 max-w-lg text-[1.0625rem] leading-[1.65] text-ink-600" style={{ animationDelay: '80ms' }}>
-              {c.subtitle}
+            <p className="text-sm text-slate-500 leading-relaxed max-w-sm">
+              Pahami kondisi jerawat dan temukan langkah perawatan awal yang lebih terarah.
             </p>
-            <div className="enter-up mt-8 flex flex-wrap items-center gap-x-5 gap-y-3" style={{ animationDelay: '160ms' }}>
-              <Link to="/scan" className="btn-primary rounded-full px-7 py-3.5 text-base">
-                {c.cta} <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-              <p className="flex items-center gap-1.5 text-body-md text-ink-600">
-                <Info className="h-4 w-4 shrink-0" aria-hidden /> {c.guestNote}
-              </p>
+          </div>
+
+          {/* 3 Step List Items */}
+          <div className="space-y-3.5 pt-1">
+            {/* Step 1 */}
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-[#EEF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
+                <ScanFace className="w-5 h-5 stroke-[2]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 leading-tight">Pindai wajah</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Ambil foto dalam cahaya yang cukup.</p>
+              </div>
             </div>
-            <div className="enter-up mt-6 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-body-md text-ink-600" style={{ animationDelay: '240ms' }}>
-              <span>{c.levelsLead}</span>
-              <ul className="flex flex-wrap gap-x-3 gap-y-1">
-                {SEVERITY_ORDER.map((level) => (
-                  <li key={level} className="inline-flex items-center gap-1.5">
-                    <span className="h-2 w-2 rounded-full" style={{ background: SEVERITY_META[level].solid }} aria-hidden />
-                    {SEVERITY_META[level].label}
-                  </li>
-                ))}
-              </ul>
+
+            {/* Step 2 */}
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-[#EEF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
+                <TrendingUp className="w-5 h-5 stroke-[2]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 leading-tight">Pahami hasilnya</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Lihat estimasi jenis dan jumlah jerawat.</p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-[#EEF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
+                <MessageSquare className="w-5 h-5 stroke-[2]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 leading-tight">Tanyakan ke asisten AI</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Diskusikan hasil dan pantau perubahan.</p>
+              </div>
             </div>
           </div>
-          <HeroVisual />
         </div>
-      </section>
+      </div>
 
-      <section className={SECTION_GAP} aria-labelledby="steps-title">
-        <Reveal className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-xl">
-            <h2 id="steps-title" className="md:text-headline-xl">{c.stepsTitle}</h2>
-            <p className="mt-2 text-[1.0625rem]">{c.stepsIntro}</p>
-          </div>
-          <Link to="/how-it-works" className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-btn text-label-md text-primary-600 transition-colors hover:text-primary-700 md:self-auto">
-            {c.stepsMore} <ArrowRight className="h-4 w-4" aria-hidden />
-          </Link>
-        </Reveal>
+      {/* Bottom CTA & Disclaimer */}
+      <div className="px-5 pb-4 space-y-3 pt-2">
+        <Link
+          to="/scan"
+          className="w-full bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold text-[15px] py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all"
+        >
+          <ArrowRight className="w-4 h-4" />
+          <span>Mulai kenali kulitmu</span>
+        </Link>
 
-        <ol className="mt-8 space-y-6 md:mt-10 md:space-y-8">
-          {c.steps.map((step, i) => {
-            const Visual = STEP_VISUALS[i];
-            const flip = i % 2 === 1;
-            const last = i === c.steps.length - 1;
-            return (
-              <Reveal as="li" key={step.title} className="relative grid items-center gap-4 pl-14 md:grid-cols-2 md:gap-12 md:pl-0">
-                {/* Thin line from this node down to the next one (left edge on phones, center on md+); the nodes sit on top of it */}
-                {!last && <span className="absolute left-5 top-5 h-[calc(100%+1.5rem)] w-px bg-primary-200 md:left-1/2 md:top-1/2 md:h-[calc(100%+2rem)]" aria-hidden />}
-                <span
-                  className="tnum absolute left-0 top-0 z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 border-primary-200 bg-white text-label-md text-primary-600 md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2"
-                  aria-hidden
-                >
-                  {i + 1}
-                </span>
-                <div className={`max-w-md ${flip ? 'md:order-2' : 'md:justify-self-end'}`}>
-                  <h3 className="text-headline-md">{step.title}</h3>
-                  <p className="mt-2 text-[1.0625rem]">{step.text}</p>
-                </div>
-                <div className={`flex w-full ${flip ? 'md:order-1 md:justify-end' : 'md:justify-start'}`}>
-                  <Visual />
-                </div>
-              </Reveal>
-            );
-          })}
-        </ol>
-      </section>
-
-      <section className={SECTION_GAP} aria-labelledby="tiers-title">
-        <div className="max-w-xl">
-          <h2 id="tiers-title" className="md:text-headline-xl">{c.tiersTitle}</h2>
-          <p className="mt-2 text-[1.0625rem]">{c.tiersIntro}</p>
+        <div className="flex items-start gap-2 pt-1 px-1 text-slate-400">
+          <ShieldCheck className="w-4 h-4 shrink-0 text-slate-400 mt-0.5" />
+          <p className="text-[11px] leading-snug">
+            Estimasi AI, bukan diagnosis medis. Foto hanya disimpan setelah kamu menyetujuinya.
+          </p>
         </div>
 
-        <div className="mt-8 md:mt-10">
-          <FeatureTabs />
-        </div>
-
-        <div className="mt-10">
-          <Disclaimer variant="box" />
-        </div>
-      </section>
-
+        {/* Home bar for guest */}
+        <div className="w-36 h-1 bg-slate-900 rounded-full mx-auto mt-4 mb-1" />
+      </div>
     </div>
   );
 }
