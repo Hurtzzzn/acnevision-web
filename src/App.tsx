@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './store/auth';
 import { Layout } from './components/Layout';
-import { RequireAdmin, RequireAuth } from './components/guards';
+import { RequireAdmin } from './components/guards';
 import { Spinner } from './components/ui';
 import Home from './pages/Home';
 import HowItWorks from './pages/HowItWorks';
@@ -13,7 +13,6 @@ import About from './pages/About';
 import { Login, Register, ResetPassword } from './pages/Auth';
 import { DEFAULT_AFTER_LOGIN } from './lib/redirect';
 
-const Analyze = lazy(() => import('./pages/Analyze'));
 const UserDashboard = lazy(() => import('./pages/Dashboard'));
 const History = lazy(() => import('./pages/History'));
 const HistoryDetail = lazy(() => import('./pages/HistoryDetail'));
@@ -48,18 +47,18 @@ export default function App() {
             <Route index element={<HomeRoute />} />
             <Route path="how-it-works" element={<HowItWorks />} />
             <Route path="scan" element={<Scan />} />
-            <Route path="analysis/:analysisId" element={<RequireAuth><Result /></RequireAuth>} />
+            <Route path="analysis/:analysisId" element={<Result />} />
             <Route path="detect-result" element={<DetectResult />} />
             <Route path="about" element={<About />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
             <Route path="reset-password" element={<ResetPassword />} />
-            <Route path="analyze" element={<RequireAuth><Analyze /></RequireAuth>} />
-            <Route path="dashboard" element={<RequireAuth><UserDashboard /></RequireAuth>} />
-            <Route path="history" element={<RequireAuth><History /></RequireAuth>} />
-            <Route path="history/:scanId" element={<RequireAuth><HistoryDetail /></RequireAuth>} />
-            <Route path="chat" element={<RequireAuth><Chat /></RequireAuth>} />
-            <Route path="profile" element={<RequireAuth><Profile /></RequireAuth>} />
+            <Route path="analyze" element={<Scan />} />
+            <Route path="dashboard" element={<UserDashboard />} />
+            <Route path="history" element={<History />} />
+            <Route path="history/:scanId" element={<HistoryDetail />} />
+            <Route path="chat" element={<Chat />} />
+            <Route path="profile" element={<Profile />} />
             <Route path="*" element={<NotFound />} />
           </Route>
           <Route path="admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>
