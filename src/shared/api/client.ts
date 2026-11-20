@@ -28,8 +28,14 @@ function toRequestError(err: unknown): ApiRequestError {
   return new ApiRequestError('INTERNAL_ERROR', 'Terjadi kesalahan tak terduga.');
 }
 
+/**
+ * Sent on every backend request so an ngrok tunnel serves the API response instead of its browser-warning page.
+ * Not a secret. Set on this client's own axios instance only (never on global axios defaults, never on Supabase calls).
+ */
+export const API_DEFAULT_HEADERS = { 'ngrok-skip-browser-warning': 'true' } as const;
+
 export function createApiClient({ baseURL, getToken, onError }: ApiClientOptions): AcneApi {
-  const http: AxiosInstance = axios.create({ baseURL, timeout: 60_000 });
+  const http: AxiosInstance = axios.create({ baseURL, timeout: 60_000, headers: API_DEFAULT_HEADERS });
 
   http.interceptors.request.use(async (config) => {
     const token = await getToken();
