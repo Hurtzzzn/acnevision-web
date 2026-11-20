@@ -13,7 +13,6 @@ interface AuthState {
   init: () => Promise<void>;
   login: (email: string, password: string) => Promise<Me>;
   register: (email: string, password: string, fullName: string) => Promise<Me | null>;
-  loginWithGoogle: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   /** An admin deactivated the signed-in account: end the session and leave the reason in `notice`. No-op when nobody is signed in. */
@@ -98,12 +97,6 @@ export const useAuth = create<AuthState>((set, get) => ({
     const me = await api.getMe();
     set({ user: me });
     return me;
-  },
-
-  async loginWithGoogle() {
-    if (!supabase) throw authError('Login Google belum tersedia saat ini.', 'INTERNAL_ERROR');
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
-    if (error) throw authError(error.message, 'INTERNAL_ERROR');
   },
 
   async resetPassword(email) {
