@@ -518,8 +518,17 @@ export function createMockBackend(): { api: AcneApi; auth: MockAuth } {
       const users = getUsers();
       const u = users.find((x) => x.id === userId);
       if (!u) throw new ApiRequestError('NOT_FOUND', 'User tidak ditemukan.', 404);
-      if (patch.status) { u.status = patch.status as UserStatus; audit(admin, patch.status === 'suspended' ? 'user.suspend' : 'user.activate', u, patch); }
-      if (patch.role) { u.role = patch.role as UserRole; audit(admin, 'user.change_role', u, patch); }
+      // Audit entries use the same action names and `{from, to}` details as the real backend.
+      if (patch.status) {
+        const from = u.status;
+        u.status = patch.status as UserStatus;
+        audit(admin, patch.status === 'suspended' ? 'user.suspend' : 'user.activate', u, { from, to: u.status });
+      }
+      if (patch.role) {
+        const from = u.role;
+        u.role = patch.role as UserRole;
+        audit(admin, patch.role === 'admin' ? 'user.promote' : 'user.demote', u, { from, to: u.role });
+      }
       save(K.users, users);
       return { id: u.id, email: u.email, full_name: u.full_name, role: u.role, status: u.status, created_at: u.created_at, last_seen_at: u.last_seen_at, saved_scans: 0 };
     },

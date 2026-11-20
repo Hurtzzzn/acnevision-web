@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createApiClient, createMockBackend, type AcneApi } from '@acnevision/shared';
+import { reportApiError } from './apiErrors';
 
 const env = import.meta.env;
 
@@ -18,4 +19,5 @@ export const api: AcneApi = mock
   : createApiClient({
       baseURL: env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1',
       getToken: async () => (await supabase?.auth.getSession())?.data.session?.access_token ?? null,
+      onError: reportApiError,
     });

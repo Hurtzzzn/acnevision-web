@@ -187,7 +187,8 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
 
   const [values, setValues] = useState<Record<FieldName, string>>({ name: '', email: '', password: '' });
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  // A signed-in user whose account was deactivated lands here with the reason; it is shown once, then cleared from the store.
+  const [formError, setFormError] = useState<string | null>(() => (isRegister ? null : useAuth.getState().notice));
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [confirmEmail, setConfirmEmail] = useState<string | null>(null);
@@ -221,6 +222,7 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
 
   // Focus the first field on arrival (the form remounts per mode, so this also runs after switching tabs).
   useEffect(() => { refs[fields[0]].current?.focus(); }, []);
+  useEffect(() => { useAuth.getState().clearNotice(); }, []);
 
   function fail(err: unknown) {
     if (!(err instanceof ApiRequestError)) {
@@ -229,6 +231,9 @@ function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string | null 
       // One message for "wrong password" and "unknown email", so the form never reveals who has an account.
       setFormError(c.errors.invalidCredentials);
       refs.password.current?.focus();
+    } else if (!isRegister && err.status === 403) {
+      // The password was right but the account is deactivated (the API answers 403 to a suspended account).
+      setFormError(c.errors.accountSuspended);
     } else if (isRegister && /terdaftar|already|registered/i.test(err.message)) {
       setError('email', c.errors.emailTaken);
       refs.email.current?.focus();

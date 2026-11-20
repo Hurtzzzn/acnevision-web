@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/runtime';
 import { errMessage, fmtDate } from '../lib/errors';
+import { displayNameOf, initialOf } from '../lib/displayName';
 import { useAuth } from '../store/auth';
 import { useUi } from '../store/ui';
 
@@ -38,9 +39,9 @@ export default function Profile() {
       <div className="card space-y-5">
         <div className="flex items-center gap-4">
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-600 text-2xl font-bold text-white">
-            {(user.full_name ?? user.email)[0].toUpperCase()}
+            {initialOf(displayNameOf(user))}
           </span>
-          <div><p className="font-semibold text-ink-900">{user.full_name ?? '-'}</p><p className="text-sm">{user.email}</p></div>
+          <div><p className="font-semibold text-ink-900">{user.full_name?.trim() || '-'}</p><p className="text-sm">{user.email}</p></div>
         </div>
         <form onSubmit={save} className="space-y-4">
           <div><label htmlFor="name" className="mb-1 block text-sm font-medium">Nama</label>

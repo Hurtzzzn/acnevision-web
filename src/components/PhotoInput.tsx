@@ -3,8 +3,13 @@ import Webcam from 'react-webcam';
 import { Camera, ImageUp, Info, RefreshCw, ScanFace } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { validatePhoto } from '../lib/photo';
-import { frameToBlob } from '../lib/capture';
-import { FaceGuide, type GuideState } from './FaceGuide';
+import { frameToBlob, visibleCropRect } from '../lib/capture';
+import { captureControl, INITIAL_GUIDE_STATE, isBlockingAdvice, OVAL_HEIGHT_PERCENT, type GuideState } from '../lib/faceGuide';
+import { useDelayedTrue } from '../lib/useDelayedTrue';
+import { FaceGuide } from './FaceGuide';
+
+/** A problem (no face, too far, off to the side) must last this long before the capture button is switched off, so one bad frame does not flicker it. */
+const BLOCK_DELAY_MS = 300;
 
 export type PhotoMethod = 'camera' | 'upload';
 
@@ -59,19 +64,23 @@ export function PhotoInput({
   const [camReady, setCamReady] = useState(false);
   // Bumped by "Coba lagi" so the camera asks for access again without reloading the page.
   const [camKey, setCamKey] = useState(0);
-  // Phones are held upright, so ask for a portrait picture there (matches the 3:4 stage).
+  // Phones are held upright, so ask for a portrait picture there. Both sizes are only "ideal": the browser falls back to the closest the camera has.
   const [portrait] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
-  const [guide, setGuide] = useState<GuideState>({ status: 'loading', ok: false });
+  const [guide, setGuide] = useState<GuideState>(INITIAL_GUIDE_STATE);
   const [started, setStarted] = useState(!cameraGate);
   const [picked, setPicked] = useState<Picked | null>(null);
   const cam = useRef<Webcam>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const uid = useId();
   const panelId = `${uid}-panel`;
+  const noteId = `${uid}-capture-note`;
 
   const active: PhotoMethod = mode;
+  // The capture button follows the face guide (see captureControl). Switching it off waits a moment; switching it back on does not.
+  const blockHeld = useDelayedTrue(isBlockingAdvice(guide.advice), BLOCK_DELAY_MS);
+  const control = captureControl(guide.advice, { camReady, disabled, blockHeld });
   const order: PhotoMethod[] = defaultMode === 'upload' ? ['upload', 'camera'] : ['camera', 'upload'];
 
   useEffect(() => { onModeChange?.(active); }, [active, onModeChange]);
@@ -87,12 +96,18 @@ export function PhotoInput({
     setPicked({ file, method, url: URL.createObjectURL(file) });
   }
 
-  // The button is never blocked by the face guide: it only advises. The file comes straight from the video frame (no overlay).
+  // The face guide blocks the button while there is no face, or it is too far or off to the side; with the guide still loading or
+  // not working, nothing blocks it. The file comes straight from the video frame (no overlay), trimmed to what the stage shows (what
+  // you see is what you send), at the camera's own resolution. The video element fills the stage, so its box is the stage. Not
+  // cropped to the oval: close-ups are what the detector wants.
   async function capture() {
+    // aria-disabled keeps the button focusable (so it can explain itself) but does not stop clicks or Enter, so stop them here.
+    if (!control.canCapture) return;
     try {
       const video = cam.current?.video;
       if (!video) throw new Error('no video');
-      const blob = await frameToBlob(video, { mirrored: true });
+      const crop = visibleCropRect(video, { width: video.clientWidth, height: video.clientHeight });
+      const blob = await frameToBlob(video, { mirrored: true, crop });
       pick(new File([blob], 'capture.jpg', { type: 'image/jpeg' }), 'camera');
     } catch {
       setError(COPY.scan.captureFailed);
@@ -184,8 +199,8 @@ export function PhotoInput({
           ) : active === 'camera' ? (
             <>
               <Webcam
-                key={camKey} ref={cam} audio={false} mirrored screenshotFormat="image/jpeg" screenshotQuality={0.92}
-                videoConstraints={{ facingMode: 'user', width: portrait ? 960 : 1280, height: portrait ? 1280 : 960 }}
+                key={camKey} ref={cam} audio={false} mirrored screenshotFormat="image/jpeg" screenshotQuality={0.95}
+                videoConstraints={{ facingMode: 'user', width: { ideal: portrait ? 1080 : 1920 }, height: { ideal: portrait ? 1920 : 1080 } }}
                 onUserMedia={() => setCamReady(true)}
                 onUserMediaError={() => setCamError(true)}
                 className="absolute inset-0 block h-full w-full object-cover"
@@ -193,10 +208,10 @@ export function PhotoInput({
               {!camReady && (
                 <p className="absolute inset-0 flex items-center justify-center text-body-md text-ink-600" role="status">{COPY.scan.cameraLoading}</p>
               )}
-              {/* Plain oval (70% of frame height) only when the guide cannot run; otherwise FaceGuide draws the one oval, in status colors */}
+              {/* Plain oval (see OVAL_HEIGHT_PERCENT) only when the guide cannot run; otherwise FaceGuide draws the one oval, in status colors */}
               {guide.status === 'unavailable' && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
-                  <div className="aspect-[3/4] h-[70%] rounded-[50%] border-2 border-dashed border-white shadow-[0_0_0_1px_rgba(37,99,235,0.5)]" />
+                  <div className="aspect-[3/4] rounded-[50%] border-2 border-dashed border-white shadow-[0_0_0_1px_rgba(37,99,235,0.5)]" style={{ height: `${OVAL_HEIGHT_PERCENT}%` }} />
                 </div>
               )}
               {/* Mounted only while the camera tab is open, so the model loads lazily and is released with the camera */}
@@ -231,17 +246,23 @@ export function PhotoInput({
               <RefreshCw className="h-4 w-4" aria-hidden /> {COPY.scan.retry}
             </button>
           ) : active === 'camera' ? (
-            <button className="btn-primary h-full w-full" onClick={capture} disabled={!camReady || disabled}>
+            <button
+              className={`btn-primary h-full w-full ${control.blocked ? 'cursor-not-allowed opacity-50 hover:bg-primary-600 motion-safe:active:scale-100' : ''}`}
+              onClick={capture}
+              disabled={control.disabled}
+              aria-disabled={control.blocked || undefined}
+              aria-describedby={noteId}
+            >
               <Camera className="h-4 w-4" aria-hidden /> {COPY.scan.capture}
             </button>
           ) : (
             <p className="text-body-sm text-ink-500">{COPY.scan.uploadHint}</p>
           )}
         </FrameAction>
-        {/* Fixed height so showing or hiding the note never moves the content below */}
-        <p className={`mt-2 h-4 text-center text-caption text-ink-500 transition-opacity ${active === 'camera' && !gated && guide.status === 'ready' && !guide.ok ? 'opacity-100' : 'opacity-0'}`}>
-          {COPY.scan.guide.softNote}
-        </p>
+        {/* Not shown: only the status pill at the bottom of the camera is. This is the same sentence as that pill (the guide reports it
+            once, in `guide.message`), kept as the capture button's description and as a polite status, so screen readers hear why the
+            button is unavailable, or the warning, without the sentence showing twice. */}
+        <p id={noteId} role="status" className="sr-only">{guide.message}</p>
       </div>
     </div>
   );

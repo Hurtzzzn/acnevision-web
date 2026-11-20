@@ -5,6 +5,7 @@ import { ChevronDown, Menu, X } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import { useAuth } from '../store/auth';
 import { useScrollLock } from '../lib/useScrollLock';
+import { displayNameOf, initialOf } from '../lib/displayName';
 import { DEFAULT_AFTER_LOGIN, NEW_ANALYSIS_PATH } from '../lib/redirect';
 import { LoginPromptModal } from './LoginPromptModal';
 import { Logo, Toasts } from './ui';
@@ -69,7 +70,7 @@ export function Navbar() {
   }, [open, menu]);
 
   const links = user ? USER_LINKS : GUEST_LINKS;
-  const displayName = user ? (user.full_name ?? user.email) : '';
+  const displayName = user ? displayNameOf(user) : '';
   // Pointer-initiated close plays the exit animation; Escape and route changes close at once.
   const closeDrawer = () => setClosing(true);
   const handleLogout = async () => { await logout(); navigate('/'); };
@@ -96,7 +97,7 @@ export function Navbar() {
                 aria-label={`${COPY.nav.userMenu}: ${displayName}`}
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-600 text-label-md text-white" aria-hidden>
-                  {displayName[0].toUpperCase()}
+                  {initialOf(displayName)}
                 </span>
                 <span className="hidden max-w-[10rem] truncate text-label-md text-ink-900 lg:inline">{displayName}</span>
                 <ChevronDown className={`h-4 w-4 text-ink-500 transition-transform duration-200 ${menu ? 'rotate-180' : ''}`} aria-hidden />

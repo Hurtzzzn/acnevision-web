@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link, NavLink, Outlet, useNavigate, useOutletContext } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
 import { Activity, BarChart3, ClipboardList, Users } from 'lucide-react';
 import type { DateRange, Granularity } from '@acnevision/shared';
 import { useAuth } from '../../store/auth';
+import { displayNameOf } from '../../lib/displayName';
+import { usesPeriod } from '../../lib/adminPeriod';
 import { Logo, Toasts } from '../../components/ui';
 
 export interface AdminCtx { range: DateRange }
@@ -20,6 +22,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const showPeriod = usesPeriod(useLocation().pathname);
   const [days, setDays] = useState(30);
   const [gran, setGran] = useState<Granularity>('day');
   const range = useMemo<DateRange>(() => {
@@ -42,19 +45,22 @@ export default function AdminLayout() {
       </aside>
 
       <div className="flex-1">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="sr-only" htmlFor="days">Rentang</label>
-            <select id="days" className="input w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
-              <option value={7}>7 hari</option><option value={30}>30 hari</option><option value={90}>90 hari</option>
-            </select>
-            <label className="sr-only" htmlFor="gran">Granularitas</label>
-            <select id="gran" className="input w-auto" value={gran} onChange={(e) => setGran(e.target.value as Granularity)}>
-              <option value="day">Harian</option><option value="week">Mingguan</option><option value="month">Bulanan</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span>{user?.full_name ?? user?.email}</span>
+        {/* min-h keeps the bar the same height with or without the period selects, so it does not jump between pages */}
+        <header className="flex min-h-[4.125rem] flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+          {showPeriod && (
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="sr-only" htmlFor="days">Rentang</label>
+              <select id="days" className="input w-auto" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+                <option value={7}>7 hari</option><option value={30}>30 hari</option><option value={90}>90 hari</option>
+              </select>
+              <label className="sr-only" htmlFor="gran">Granularitas</label>
+              <select id="gran" className="input w-auto" value={gran} onChange={(e) => setGran(e.target.value as Granularity)}>
+                <option value="day">Harian</option><option value="week">Mingguan</option><option value="month">Bulanan</option>
+              </select>
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-3 text-sm">
+            <span>{user ? displayNameOf(user) : ''}</span>
             <button className="btn-outline px-3 py-1.5" onClick={async () => { await logout(); navigate('/'); }}>Keluar</button>
           </div>
         </header>

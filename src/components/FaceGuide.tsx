@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Info } from 'lucide-react';
 import { COPY } from '@acnevision/shared';
 import {
-  allOk, boundsOf, checkGaze, checkLighting, checkPosition, IDLE_CHECKS, NO_FACE_CHECKS,
-  type Check as GuideCheck, type GuideChecks, type Point,
+  boundsOf, checkGaze, checkLighting, createPositionChecker, guideAdvice, guideMessage, IDLE_CHECKS, INITIAL_GUIDE_STATE, NO_FACE_CHECKS,
+  OVAL_HEIGHT_PERCENT, toStagePoints,
+  type Check as GuideCheck, type GuideChecks, type GuideState, type GuideStatus, type Point, type StatusTone,
 } from '../lib/faceGuide';
 import { FaceMeshIcon } from './FaceMeshIcon';
 import { loadFaceLandmarker, type LoadedLandmarker } from '../lib/faceLandmarker';
@@ -20,38 +21,18 @@ const MESH_MAX_DPR = 2;
 /** Slightly longer than the 200 ms fade, so the canvas is wiped only after it has faded out. */
 const MESH_FADE_MS = 220;
 
-export type GuideStatus = 'loading' | 'ready' | 'unavailable';
-export interface GuideState { status: GuideStatus; ok: boolean }
-
-type Tone = 'ok' | 'bad' | 'neutral';
-
-/** The one line shown on the stage: the first thing to adjust, else "all good", else the general hint. */
-function statusOf(checks: GuideChecks): { tone: Tone; text: string } {
-  if (allOk(checks)) return { tone: 'ok', text: G.allGood };
-  const bad = [checks.position, checks.lighting, checks.gaze].find((c: GuideCheck) => c.state === 'bad' && c.hint);
-  return bad ? { tone: 'bad', text: bad.hint as string } : { tone: 'neutral', text: G.hint };
-}
-
-/** Follows `value` only after it has stayed the same for `delay` ms, so a screen reader is not told about every flicker. */
-function useSettled<T>(value: T, delay: number): T {
-  const [settled, setSettled] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setSettled(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return settled;
-}
-
 /** Soft amber for "not quite", never red: it should read as a suggestion, not an error. */
-const TONE_CLASS: Record<Tone, string> = {
+const TONE_CLASS: Record<StatusTone, string> = {
   ok: 'border-green-200 bg-green-50 text-green-800',
   bad: 'border-amber-200 bg-amber-50 text-amber-800',
   neutral: 'frosted text-ink-600',
 };
 
 /**
- * Real-time face position guide over the camera: the target oval (it changes color with the status), a single status line
- * that names the first thing to adjust. Runs MediaPipe Face Landmarker in the browser (no frame leaves the device). If the model
+ * Real-time face position guide over the camera: the target oval (it changes color with the status) and a single status pill with
+ * the one thing to do next. The same words go up to the camera in `onState` (`message`), which shows them again, visually hidden,
+ * as the capture button's description for screen readers; this component has no live region of its own, so nothing is read twice.
+ * Runs MediaPipe Face Landmarker in the browser (no frame leaves the device). If the model
  * cannot load or run, it reports `unavailable` and renders nothing, so the parent shows its plain oval and the camera keeps
  * working. It can also draw a face mesh on its own overlay canvas (on by default, switchable); the photo is taken from the
  * video element (see `frameToBlob`), never from here, so neither the mesh nor the oval can end up in the file.
@@ -102,8 +83,13 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
     return () => { cancelled = true; current?.landmarker.close(); };
   }, []);
 
-  const ok = allOk(checks);
-  useEffect(() => { onStateRef.current({ status, ok: status === 'ready' && ok }); }, [status, ok]);
+  // One verdict feeds the pill below, the oval's color and (through onState) the capture button and its hidden description, so they
+  // can never disagree: see guideVerdict.
+  const advice = guideAdvice(status, checks);
+  const message = guideMessage(status, checks);
+  useEffect(() => { onStateRef.current({ status, advice, message: message.text }); }, [status, advice, message.text]);
+  // When the guide goes away (camera tab closed, preview shown), forget what it last said so a stale "blocked" cannot linger.
+  useEffect(() => () => onStateRef.current(INITIAL_GUIDE_STATE), []);
 
   // Detection loop, throttled to ~12 fps; rAF also pauses it in background tabs.
   useEffect(() => {
@@ -117,6 +103,8 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
     let raf = 0;
     let last = 0;
     let lastKey = '';
+    // Remembers the last position verdict, so a face on the edge of "too far" or "off-center" does not make the button flicker.
+    const position = createPositionChecker();
     // Mesh state: where the landmarks were last detected (stage pixels), and where they are drawn now (eased toward it).
     let target: Point[] | null = null;
     let shown: Point[] | null = null;
@@ -135,13 +123,12 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
 
       const result = loaded.landmarker.detectForVideo(video, performance.now());
       const face = result.faceLandmarks[0];
-      if (!face) { target = null; shown = null; publish(NO_FACE_CHECKS, false); return; }
+      if (!face) { target = null; shown = null; position.reset(); publish(NO_FACE_CHECKS, false); return; }
 
       // Video pixels -> stage pixels: object-cover scaling (the video is cropped to fill the stage), then mirrored like the preview.
-      const scale = Math.max(cw / vw, ch / vh);
-      const offX = (cw - vw * scale) / 2, offY = (ch - vh * scale) / 2;
-      const pts: Point[] = face.map((p) => ({ x: cw - (offX + p.x * vw * scale), y: offY + p.y * vh * scale }));
-      // These are display coordinates (already mirrored like the preview), so the overlay canvas needs no CSS flip of its own.
+      const pts = toStagePoints(face, { width: vw, height: vh }, { width: cw, height: ch });
+      // These are display coordinates (already mirrored like the preview), so the overlay canvas needs no CSS flip of its own, and
+      // the oval (centered in the stage) and the face are compared in the same mirrored space.
       target = pts;
 
       // Lighting is measured on the inner part of the face in the (unmirrored) video frame.
@@ -153,7 +140,7 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
         : { state: 'idle' };
       const next: GuideChecks = {
         lighting,
-        position: checkPosition(pts, cw, ch),
+        position: position.check(pts, cw, ch),
         gaze: checkGaze(result.facialTransformationMatrixes[0]?.data),
       };
       publish(next, true);
@@ -196,24 +183,25 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
     };
   }, [video, loaded]);
 
-  const message = statusOf(checks);
-  // Announced politely and only once it has been stable for a moment; the general hint is never read out.
-  const spoken = useSettled(message.tone === 'neutral' ? '' : message.text, 1200);
   if (status === 'unavailable') return null;
-  // The oval steps back a little while the mesh is showing, so the two do not compete.
-  const ovalTone = ok
+  // Green when the position is right, yellow for anything blocked or cautioned (including no face at all), white while nothing is
+  // known yet. The oval steps back a little while the mesh is showing, so the two do not compete.
+  const ovalTone = message.tone === 'ok'
     ? (meshVisible ? 'border-green-500/60' : 'border-green-500')
-    : faceSeen ? (meshVisible ? 'border-amber-400/60' : 'border-amber-400') : 'border-white';
+    : message.tone === 'bad' ? (meshVisible ? 'border-amber-400/60' : 'border-amber-400') : 'border-white';
   return (
     <>
-      {/* Target oval, 70% of the stage height; the position check uses this same oval (see guideOval). Also gives the stage size. */}
+      {/* Target oval (OVAL_HEIGHT_PERCENT of the stage height): fill it with cheeks and forehead. It is a target, not a limit; the
+          position check blocks the photo for a face that is missing or mostly out of the frame, shorter than MIN_FACE_HEIGHT_SHARE of
+          the oval, or away from its middle (see checkPosition); the oval is yellow for those and for the light and angle warning, and
+          green only when nothing is flagged. Also gives the stage size. */}
       <div ref={stage} className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
         {/* Mesh overlay: its own canvas, never read when the photo is taken. Fades in over 200 ms (instant under reduced motion). */}
         <canvas
           ref={meshCanvas}
           className={`absolute inset-0 h-full w-full transition-opacity duration-200 ease-out motion-reduce:transition-none ${meshVisible ? 'opacity-100' : 'opacity-0'}`}
         />
-        <div className={`aspect-[3/4] h-[70%] rounded-[50%] border-2 border-dashed motion-safe:transition-colors ${ovalTone}`} />
+        <div className={`aspect-[3/4] rounded-[50%] border-2 border-dashed motion-safe:transition-colors ${ovalTone}`} style={{ height: `${OVAL_HEIGHT_PERCENT}%` }} />
       </div>
 
       {status === 'ready' && (
@@ -227,17 +215,15 @@ export function FaceGuide({ video, onState }: { video: HTMLVideoElement | null; 
       )}
 
       <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10 flex justify-center">
+        {/* aria-hidden: screen readers get the same words from the capture button's description (see PhotoInput), once */}
         {status === 'loading' ? (
-          <p role="status" className="frosted rounded-full px-3 py-1 text-label-sm text-ink-600">{G.loading}</p>
+          <p aria-hidden className="frosted rounded-full px-3 py-1 text-label-sm text-ink-600">{message.text}</p>
         ) : (
-          <>
-            <p aria-hidden className={`flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-center text-label-sm motion-safe:transition-colors ${TONE_CLASS[message.tone]}`}>
-              {message.tone === 'ok' && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
-              {message.tone === 'bad' && <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />}
-              <span>{message.text}</span>
-            </p>
-            <p role="status" aria-live="polite" aria-label={G.statusLabel} className="sr-only">{spoken}</p>
-          </>
+          <p aria-hidden className={`flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-center text-label-sm motion-safe:transition-colors ${TONE_CLASS[message.tone]}`}>
+            {message.tone === 'ok' && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+            {message.tone === 'bad' && <Info className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+            <span>{message.text}</span>
+          </p>
         )}
       </div>
     </>

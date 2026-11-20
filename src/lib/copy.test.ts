@@ -49,6 +49,25 @@ describe('UI copy', () => {
     expect(Object.keys(COPY.howItWorks.severityText)).toEqual(['mild', 'moderate', 'severe', 'very_severe']);
   });
 
+  it('gives one camera instruction everywhere: come close until cheeks and forehead fill the screen, in the light, then hold still', () => {
+    const closeUp = 'Dekatkan wajah sampai pipi dan dahi memenuhi layar';
+    expect(COPY.scan.subtitle).toContain(closeUp);
+    expect(COPY.scan.subtitle).toMatch(/terang/);
+    expect(COPY.scan.subtitle).toMatch(/diam sebentar sebelum menekan Ambil Foto/);
+    expect(COPY.scan.guide.hint).toContain(closeUp);
+    expect(COPY.photoTips[0]).toBe(closeUp);
+    expect(COPY.photoTips.join(' ')).toMatch(/cahaya terang/);
+    expect(COPY.photoTips.join(' ')).toMatch(/Diam sebentar/);
+    // the button label the subtitle names is the real one
+    expect(COPY.scan.capture).toBe('Ambil Foto');
+  });
+
+  it('never tells anyone to move back or away from the camera (close-ups are what the detector wants)', () => {
+    const cameraText = strings([COPY.scan, COPY.photoTips, COPY.home.steps]).join(' | ');
+    expect(cameraText).not.toMatch(/mundur|menjauh|jauhkan|lebih jauh|kejauhan/i);
+    expect(Object.keys(COPY.scan.guide)).not.toContain('tooClose');
+  });
+
   it('keeps the chat placeholder short enough for a phone input', () => {
     expect(COPY.chat.placeholder.length).toBeLessThanOrEqual(28);
   });

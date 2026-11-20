@@ -102,8 +102,8 @@
 .card-lift { transition: opacity 560ms var(--ease-out), transform 560ms var(--ease-out), translate 250ms var(--ease-out), box-shadow 250ms var(--ease-out); }
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
   .card-lift:hover { translate: 0 -3px; box-shadow: var(--shadow-float); }
-  .btn:not(:disabled):hover { translate: 0 -2px; box-shadow: 0 6px 16px -6px rgba(15, 23, 42, 0.22); }
-  .btn:not(:disabled):active { translate: 0 0; box-shadow: none; }
+  .btn:not(:disabled):not([aria-disabled="true"]):hover { translate: 0 -2px; box-shadow: 0 6px 16px -6px rgba(15, 23, 42, 0.22); }
+  .btn:not(:disabled):not([aria-disabled="true"]):active { translate: 0 0; box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } .enter-soft { animation: none; } }
 

@@ -76,7 +76,7 @@ export default function Users() {
                         </button>
                         <button className="btn-outline px-3 py-1.5" disabled={self}
                           onClick={() => setPending({ user: u, patch: { role: u.role === 'admin' ? 'user' : 'admin' }, text: `Ubah role ${u.email} menjadi ${u.role === 'admin' ? 'user' : 'admin'}?` })}>
-                          Ubah Role
+                          {u.role === 'admin' ? 'Jadikan User' : 'Jadikan Admin'}
                         </button>
                       </div>
                     </td>

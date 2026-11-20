@@ -5,6 +5,15 @@ import { ApiRequestError, type AcneApi } from './types';
 export interface ApiClientOptions {
   baseURL: string;
   getToken: () => Promise<string | null> | string | null;
+  /** Sees every failed request (already turned into an ApiRequestError) just before it is thrown to the caller. Must not throw. */
+  onError?: (err: ApiRequestError) => void;
+}
+
+/** Drops params that are empty ('' / null / undefined), so a cleared filter is not sent as `?status=`. 0 and false are kept. */
+export function compactParams<T extends object>(params: T | undefined): Partial<T> | undefined {
+  if (!params) return undefined;
+  const kept = Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined);
+  return Object.fromEntries(kept) as Partial<T>;
 }
 
 function toRequestError(err: unknown): ApiRequestError {
@@ -19,7 +28,7 @@ function toRequestError(err: unknown): ApiRequestError {
   return new ApiRequestError('INTERNAL_ERROR', 'Terjadi kesalahan tak terduga.');
 }
 
-export function createApiClient({ baseURL, getToken }: ApiClientOptions): AcneApi {
+export function createApiClient({ baseURL, getToken, onError }: ApiClientOptions): AcneApi {
   const http: AxiosInstance = axios.create({ baseURL, timeout: 60_000 });
 
   http.interceptors.request.use(async (config) => {
@@ -32,7 +41,9 @@ export function createApiClient({ baseURL, getToken }: ApiClientOptions): AcneAp
     try {
       return (await fn()).data;
     } catch (err) {
-      throw toRequestError(err);
+      const failure = toRequestError(err);
+      onError?.(failure);
+      throw failure;
     }
   }
 
@@ -77,7 +88,7 @@ export function createApiClient({ baseURL, getToken }: ApiClientOptions): AcneAp
 
     adminUsage: (r) => call(() => http.get('/admin/stats/usage', { params: r })),
     adminModel: (r) => call(() => http.get('/admin/stats/model', { params: r })),
-    adminUsers: (p) => call(() => http.get('/admin/users', { params: p })),
+    adminUsers: (p) => call(() => http.get('/admin/users', { params: compactParams(p) })),
     adminUpdateUser: (id, patch) => call(() => http.patch(`/admin/users/${id}`, patch)),
     adminAudit: (page = 1) => call(() => http.get('/admin/audit-logs', { params: { page } })),
   };

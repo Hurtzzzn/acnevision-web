@@ -289,7 +289,7 @@ export const COPY = {
     steps: [
       {
         title: 'Ambil atau Unggah Foto',
-        text: 'Buka kamera atau pilih foto dari galeri. Panduan oval di layar membantu kamu memposisikan wajah.',
+        text: 'Buka kamera atau pilih foto dari galeri. Panduan di layar membantu kamu mendekatkan wajah dengan pas.',
         points: [
           'Cari cahaya yang merata dan hadap lurus ke kamera.',
           'Lepas filter dan hindari makeup tebal.',
@@ -413,26 +413,28 @@ export const COPY = {
   },
   scan: {
     title: 'Ambil Foto Wajahmu',
-    subtitle: 'Posisikan wajah di dalam panduan, lalu ambil foto atau unggah dari galeri.',
+    subtitle: 'Dekatkan wajah sampai pipi dan dahi memenuhi layar, di tempat terang, lalu diam sebentar sebelum menekan Ambil Foto. Bisa juga unggah dari galeri.',
     tabsLabel: 'Sumber foto',
     tabCamera: 'Kamera',
     tabUpload: 'Unggah',
     guide: {
       loading: 'Memuat panduan...',
-      statusLabel: 'Panduan posisi wajah',
-      hint: 'Cari cahaya merata dan hadap lurus ke kamera.',
+      // The general hint, shown before the guide has anything to say.
+      hint: 'Dekatkan wajah sampai pipi dan dahi memenuhi layar',
+      // The photo is only taken when the face is close and near the middle. These three block the Ambil Foto button, ranked in this
+      // order when several apply; the status pill on the camera and the screen-reader description of the button use these exact words.
+      outOfFrame: 'Geser wajahmu ke dalam bingkai',
+      tooFar: 'Dekatkan wajah sampai pipi dan dahi memenuhi layar',
+      offCenter: 'Geser wajahmu ke tengah bingkai',
+      // Light, glare or head angle: the button still works. The specific cause follows this sentence ("Hasil bisa kurang akurat. ...").
+      cautionNote: 'Hasil bisa kurang akurat',
       lightingDark: 'Geser ke tempat lebih terang',
       lightingBright: 'Kurangi cahaya yang terlalu silau',
-      noFace: 'Posisikan wajah di dalam oval',
-      tooFar: 'Dekatkan wajah sedikit',
-      tooClose: 'Mundur sedikit',
-      offCenter: 'Geser wajah ke tengah oval',
       gazeBad: 'Hadap ke depan sedikit lagi',
-      allGood: 'Posisi sudah pas',
+      allGood: 'Posisi sudah pas, diam sebentar lalu ambil foto',
       meshLabel: 'Jaring wajah',
       meshHide: 'Sembunyikan jaring wajah',
       meshShow: 'Tampilkan jaring wajah',
-      softNote: 'Foto masih bisa diambil, hasil terbaik bila wajah lurus dan terang.',
     },
     cameraLoading: 'Menyiapkan kamera...',
     capture: 'Ambil Foto',
@@ -590,6 +592,7 @@ export const COPY = {
       passwordRequired: 'Isi kata sandimu.',
       passwordShort: 'Kata sandi minimal 8 karakter.',
       invalidCredentials: 'Email atau kata sandi belum cocok. Periksa lagi, atau atur ulang kata sandimu.',
+      accountSuspended: 'Akunmu sedang dinonaktifkan. Hubungi admin.',
       emailTaken: 'Akun belum bisa dibuat dengan email ini. Coba masuk, atau pakai email lain.',
       generic: 'Belum berhasil. Periksa koneksimu, lalu coba lagi.',
     },
@@ -611,6 +614,12 @@ export const COPY = {
     },
   },
   close: 'Tutup',
+  // Shown by the app-level error boundary when a component crashes.
+  crash: {
+    title: 'Halaman ini belum bisa ditampilkan',
+    body: 'Ada kendala tak terduga di sisi kami. Muat ulang halaman untuk mencoba lagi.',
+    reload: 'Muat ulang',
+  },
   loginGateChat: 'Masuk untuk bertanya lebih lanjut ke asisten AI',
   loginGateSave:
     'Masuk untuk menyimpan hasil ke riwayat. Setelah masuk, lakukan scan ulang agar hasil tersimpan.',
@@ -624,9 +633,9 @@ export const COPY = {
   severityMismatchNote:
     'Tingkat keparahan dinilai AI dari tampilan keseluruhan wajah, bukan hanya dari jumlah kotak, jadi bisa berbeda dari jumlah jerawat yang terdeteksi.',
   photoTips: [
-    'Pastikan pencahayaan cukup',
-    'Wajah terlihat jelas dan menghadap kamera',
-    'Jaga kamera tetap stabil',
+    'Dekatkan wajah sampai pipi dan dahi memenuhi layar',
+    'Pastikan cahaya terang dan merata',
+    'Diam sebentar sebelum menekan tombol ambil foto',
     'Hindari makeup tebal',
   ],
 } as const;

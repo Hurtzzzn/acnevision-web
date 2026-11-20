@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, CheckCircle2, Info, Loader2, X } from 'lucide-react';
 import { COPY, SEVERITY_META, type Severity } from '@acnevision/shared';
 import { useUi } from '../store/ui';
@@ -116,7 +117,9 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
     return () => { document.removeEventListener('keydown', onKey); prev?.focus(); };
   }, [onClose]);
 
-  return (
+  // Portal to the body: rendered where the page puts it, the overlay inherited its surroundings (for example `space-y-4` on the
+  // page gave it a top margin, which shifted it down and left a strip of page above it). The body is never inside such a container.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 p-gutter-sm" onMouseDown={onClose}>
       <div
         ref={ref}
@@ -139,7 +142,8 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

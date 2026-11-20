@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AuditLogItem, Paginated } from '@acnevision/shared';
 import { api } from '../../lib/runtime';
 import { errMessage, fmtDate } from '../../lib/errors';
+import { formatAuditDetail } from '../../lib/auditDetail';
 import { EmptyState, ErrorBox, Spinner } from '../../components/ui';
 
 export default function Audit() {
@@ -29,13 +30,16 @@ export default function Audit() {
                 <tr>{['Waktu', 'Admin', 'Aksi', 'Target', 'Detail'].map((h) => <th key={h} className="px-4 py-3">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {data.items.map((l) => (
-                  <tr key={l.id}>
-                    <td className="whitespace-nowrap px-4 py-3">{fmtDate(l.created_at, true)}</td><td className="px-4 py-3">{l.admin_email}</td>
-                    <td className="px-4 py-3">{l.action}</td><td className="px-4 py-3">{l.target_email ?? '-'}</td>
-                    <td className="px-4 py-3 font-mono text-xs">{JSON.stringify(l.details)}</td>
-                  </tr>
-                ))}
+                {data.items.map((l) => {
+                  const detail = formatAuditDetail(l.action, l.details);
+                  return (
+                    <tr key={l.id}>
+                      <td className="whitespace-nowrap px-4 py-3">{fmtDate(l.created_at, true)}</td><td className="px-4 py-3">{l.admin_email}</td>
+                      <td className="px-4 py-3">{l.action}</td><td className="px-4 py-3">{l.target_email ?? '-'}</td>
+                      <td className={`px-4 py-3 ${detail.raw ? 'font-mono text-xs' : ''}`}>{detail.text}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
