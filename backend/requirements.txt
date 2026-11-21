@@ -1,0 +1,24 @@
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+pydantic>=2.8.0,<3.0.0
+pydantic-settings>=2.4.0,<3.0.0
+python-multipart>=0.0.9
+email-validator>=2.0.0
+pyjwt>=2.8.0
+pillow>=10.4.0,<11.0.0
+numpy>=1.26.0,<2.1.0
+httpx>=0.27.0,<1.0.0
+websockets>=12.0
+python-magic-bin>=0.4.14; platform_system == "Windows"
+python-magic>=0.4.27; platform_system != "Windows"
+
+# AI/ML Detection Engine
+ultralytics>=8.3.0
+onnxruntime>=1.19.0; platform_machine != "arm64"
+# PyTorch: in production or GPU, install torch with CUDA as needed
+torch>=2.2.0
+
+# Quality & Testing
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+

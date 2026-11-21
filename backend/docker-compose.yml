@@ -1,0 +1,21 @@
+services:
+  acnevision-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: acnevision-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=AcneVision AI: Real-Time Acne Detection System
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - MODEL_PATH=weights/best_yolo11n_acne.pt
+      - MODEL_DEVICE=cpu
+      - INFERENCE_MAX_WORKERS=8
+      - CLASSIFIER_SERVICE_URL=http://classifier-mock:8001/api/v1/classify
+      - CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,capacitor://localhost
+    volumes:
+      - ./weights:/app/weights:ro
+    restart: unless-stopped
+
