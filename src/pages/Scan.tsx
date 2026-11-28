@@ -3,22 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import {
   X,
+  Zap,
   ZapOff,
   Sun,
   ScanFace,
   Image as ImageIcon,
   RefreshCw,
-  CameraOff,
-  Upload,
+  Lock,
 } from 'lucide-react';
-import { MobileStatusBar } from '../components/mobile/MobileStatusBar';
 import { useScan } from '../store/scan';
 import { useAuth } from '../store/auth';
-import { api } from '../lib/runtime';
-import { frameToBlob } from '../lib/capture';
+import { useUi } from '../store/ui';
+import { useSettings } from '../store/settings';
+import { frameToBlob, type CaptureCanvas } from '../lib/capture';
 import { loadFaceLandmarker, type LoadedLandmarker } from '../lib/faceLandmarker';
-import { boundsOf, checkLighting } from '../lib/faceGuide';
-import heroineImg from '../assets/images/heroine.png';
+import {
+  boundsOf,
+  checkGaze,
+  checkLighting,
+  checkPositionInOval,
+  headAngles,
+  type CheckState,
+  type OvalBounds,
+} from '../lib/faceGuide';
+import { CameraConsentView, CameraDeniedView } from '../components/scan/CameraPermissionViews';
 
 interface LiveBox {
   id: number;
@@ -28,68 +36,158 @@ interface LiveBox {
   confidence: number;
 }
 
-// Candidate facial landmark skin sites (forehead skin, cheeks, nose, chin - strictly skin, excluding hair and neck)
-const CANDIDATE_SKIN_SITES = [
-  // Forehead skin (below hairline, above eyebrows)
-  { idx: 151, baseConf: 94 }, // Mid forehead
-  { idx: 9, baseConf: 89 },   // Glabella / lower forehead
-  { idx: 68, baseConf: 87 },   // Left mid forehead
-  { idx: 298, baseConf: 88 },  // Right mid forehead
-  { idx: 107, baseConf: 91 },  // Left lower forehead
-  { idx: 336, baseConf: 90 },  // Right lower forehead
-
-  // Left Cheek
-  { idx: 117, baseConf: 92 },  // Left cheek center
-  { idx: 118, baseConf: 87 },  // Left cheek inner
-  { idx: 123, baseConf: 85 },  // Left cheek lower
-  { idx: 101, baseConf: 91 },  // Left cheek upper
-  { idx: 205, baseConf: 89 },  // Left cheek bone
-
-  // Right Cheek
-  { idx: 346, baseConf: 93 },  // Right cheek center
-  { idx: 347, baseConf: 86 },  // Right cheek inner
-  { idx: 352, baseConf: 88 },  // Right cheek lower
-  { idx: 330, baseConf: 90 },  // Right cheek upper
-  { idx: 425, baseConf: 89 },  // Right cheek bone
-
-  // Nose Bridge
-  { idx: 168, baseConf: 91 },  // Upper nose bridge
-  { idx: 197, baseConf: 86 },  // Mid nose bridge
-
-  // Chin Skin (above jaw edge)
-  { idx: 175, baseConf: 92 },  // Chin center
-  { idx: 199, baseConf: 87 },  // Chin upper
+const FACE_OVAL_INDICES = [
+  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+  397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+  172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109,
 ];
+
+const CANDIDATE_SKIN_SITES: ReadonlyArray<{
+  idx: number;
+  baseConf: number;
+  side: 'center' | 'left' | 'right';
+}> = [
+  { idx: 151, baseConf: 94, side: 'center' },
+  { idx: 9, baseConf: 89, side: 'center' },
+  { idx: 68, baseConf: 87, side: 'left' },
+  { idx: 298, baseConf: 88, side: 'right' },
+  { idx: 107, baseConf: 91, side: 'left' },
+  { idx: 336, baseConf: 90, side: 'right' },
+  { idx: 117, baseConf: 92, side: 'left' },
+  { idx: 118, baseConf: 87, side: 'left' },
+  { idx: 123, baseConf: 85, side: 'left' },
+  { idx: 101, baseConf: 91, side: 'left' },
+  { idx: 205, baseConf: 89, side: 'left' },
+  { idx: 346, baseConf: 93, side: 'right' },
+  { idx: 347, baseConf: 86, side: 'right' },
+  { idx: 352, baseConf: 88, side: 'right' },
+  { idx: 330, baseConf: 90, side: 'right' },
+  { idx: 425, baseConf: 89, side: 'right' },
+  { idx: 168, baseConf: 91, side: 'center' },
+  { idx: 197, baseConf: 86, side: 'center' },
+  { idx: 175, baseConf: 92, side: 'center' },
+  { idx: 199, baseConf: 87, side: 'center' },
+];
+
+/** Imperatively renders smooth bounding boxes + confidence tags onto an overlay canvas with zero React re-renders. */
+function drawBoxesCanvas(ctx: CanvasRenderingContext2D, cw: number, ch: number, boxes: LiveBox[]) {
+  ctx.clearRect(0, 0, cw, ch);
+  if (boxes.length === 0) return;
+
+  ctx.font = '900 9px ui-sans-serif, system-ui, sans-serif';
+  ctx.textBaseline = 'middle';
+
+  for (const box of boxes) {
+    // Translucent fill + glowing green frame
+    ctx.fillStyle = 'rgba(52, 211, 153, 0.18)';
+    ctx.strokeStyle = 'rgba(52, 211, 153, 0.95)';
+    ctx.lineWidth = 2;
+
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(box.left, box.top, box.size, box.size, 4);
+    } else {
+      ctx.rect(box.left, box.top, box.size, box.size);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Confidence percentage badge
+    const label = `${box.confidence}%`;
+    const tagW = ctx.measureText(label).width + 6;
+    const tagH = 12;
+    const tagY = box.top - tagH - 2;
+
+    ctx.fillStyle = '#10B981';
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(box.left, tagY, tagW, tagH, 3);
+    } else {
+      ctx.rect(box.left, tagY, tagW, tagH);
+    }
+    ctx.fill();
+
+    ctx.fillStyle = '#0F172A';
+    ctx.fillText(label, box.left + 3, tagY + tagH / 2 + 0.5);
+  }
+}
 
 export default function Scan() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const setDetection = useScan((s) => s.setDetection);
-  const setScan = useScan((s) => s.setScan);
+  const toast = useUi((s) => s.toast);
+  const setPendingPhoto = useScan((s) => s.setPendingPhoto);
+  const { cameraIntroSeen, setCameraIntroSeen } = useSettings();
 
   const webcamRef = useRef<Webcam>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const ovalRef = useRef<HTMLDivElement>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const captureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animRef = useRef<number>(0);
   const landmarkerRef = useRef<LoadedLandmarker | null>(null);
 
-  // Camera Hardware & Permission States
+  // Cached DOM geometry updated only on resize (eliminates forced layout reflows inside RAF loop)
+  const layoutRef = useRef<{ cw: number; ch: number; oval: OvalBounds }>({
+    cw: 0,
+    ch: 0,
+    oval: { cx: 180, cy: 240, rx: 120, ry: 170 },
+  });
+
+  // Cached smoothed box positions to interpolate frame-to-frame
+  const smoothMapRef = useRef<Map<number, { left: number; top: number; size: number }>>(new Map());
+
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [cameraConsentGiven, setCameraConsentGiven] = useState(cameraIntroSeen);
   const [cameraPermissionDenied, setCameraPermissionDenied] = useState(false);
   const [camKey, setCamKey] = useState(0);
   const [flashOn, setFlashOn] = useState(false);
+  const [shutterFlash, setShutterFlash] = useState(false);
 
-  // Visualisasi Deteksi & Acne Count
+  // Deduplicated UI states
+  const [landmarkerReady, setLandmarkerReady] = useState(false);
+  const [landmarkerFailed, setLandmarkerFailed] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [lightingText, setLightingText] = useState('Cahaya cukup');
-  const [liveBoxes, setLiveBoxes] = useState<LiveBox[]>([]);
+  const [isAligned, setIsAligned] = useState(false);
+  const [lightingState, setLightingState] = useState<CheckState>('idle');
+  const [lightingText, setLightingText] = useState('Memeriksa cahaya...');
+  const [alignmentHint, setAlignmentHint] = useState('Posisikan wajah di dalam bingkai');
+  const [acneCount, setAcneCount] = useState(0);
+  const [capturing, setCapturing] = useState(false);
 
-  // API Integration & Capture States
-  const [analyzing, setAnalyzing] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const prevUiRef = useRef({
+    detected: false,
+    aligned: false,
+    lightingState: 'idle' as CheckState,
+    lightingText: 'Memeriksa cahaya...',
+    hint: 'Posisikan wajah di dalam bingkai',
+    count: 0,
+  });
 
-  // 1. Initialize MediaPipe Face Landmarker
+  // Check browser permission state cleanly
+  useEffect(() => {
+    let active = true;
+    if (navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: 'camera' as PermissionName })
+        .then((res) => {
+          if (!active) return;
+          if (res.state === 'granted') {
+            setCameraConsentGiven(true);
+            setCameraPermissionDenied(false);
+          } else if (res.state === 'denied') {
+            setCameraPermissionDenied(true);
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Load MediaPipe Face Landmarker once
   useEffect(() => {
     let cancelled = false;
     loadFaceLandmarker().then(
@@ -98,10 +196,11 @@ export default function Scan() {
           loaded.landmarker.close();
         } else {
           landmarkerRef.current = loaded;
+          setLandmarkerReady(true);
         }
       },
       () => {
-        // Fallback: visual simulation continues if wasm is delayed
+        if (!cancelled) setLandmarkerFailed(true);
       }
     );
 
@@ -114,42 +213,129 @@ export default function Scan() {
     };
   }, []);
 
-  // 2. Real-time Face Tracking Loop (strictly inside oval boundary)
+  // Measure stage & guide oval only when container resizes (zero layout thrashing in animation loop)
   useEffect(() => {
-    let lastCheck = 0;
+    if (!cameraConsentGiven || cameraPermissionDenied) return;
+    const stage = stageRef.current;
+    const oval = ovalRef.current;
+    const canvas = overlayCanvasRef.current;
+    if (!stage || !oval) return;
+
+    const measure = () => {
+      const sRect = stage.getBoundingClientRect();
+      const oRect = oval.getBoundingClientRect();
+      const cw = sRect.width;
+      const ch = sRect.height;
+      if (cw > 0 && ch > 0) {
+        layoutRef.current = {
+          cw,
+          ch,
+          oval: {
+            cx: oRect.width > 0 ? oRect.left - sRect.left + oRect.width / 2 : cw / 2,
+            cy: oRect.height > 0 ? oRect.top - sRect.top + oRect.height / 2 : ch * 0.44,
+            rx: oRect.width > 0 ? oRect.width / 2 : cw * 0.38,
+            ry: oRect.height > 0 ? oRect.height / 2 : ch * 0.36,
+          },
+        };
+        if (canvas) {
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.round(cw * dpr);
+          canvas.height = Math.round(ch * dpr);
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+      }
+    };
+
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    ro?.observe(stage);
+    window.addEventListener('resize', measure);
+
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [cameraConsentGiven, cameraPermissionDenied]);
+
+  const handleToggleFlash = async () => {
+    const next = !flashOn;
+    setFlashOn(next);
+    const stream = webcamRef.current?.video?.srcObject as MediaStream | null;
+    const track = stream?.getVideoTracks?.()[0];
+    if (track && 'applyConstraints' in track) {
+      try {
+        await track.applyConstraints({
+          advanced: [{ torch: next } as MediaTrackConstraintSet],
+        });
+      } catch {
+        // Torch unsupported on front camera
+      }
+    }
+  };
+
+  // High-performance tracking loop: zero React re-renders unless status changes, GPU-smooth canvas overlay
+  useEffect(() => {
+    if (!cameraConsentGiven || cameraPermissionDenied) return;
+
+    let lastDetectTime = 0;
+    let lastLightTime = 0;
+    let lastVideoTime = -1;
+    let latestLightCheck = { state: 'ok' as CheckState, hint: undefined as string | undefined, text: 'Cahaya cukup' };
+
     const scratch = document.createElement('canvas');
     scratch.width = 24;
     scratch.height = 24;
     const sctx = scratch.getContext('2d', { willReadFrequently: true });
 
-    const detectFrame = (time: number) => {
-      const video = webcamRef.current?.video;
-      const stage = stageRef.current;
-      const loaded = landmarkerRef.current;
+    const commitUiIfChanged = (
+      detected: boolean,
+      aligned: boolean,
+      lState: CheckState,
+      lText: string,
+      hint: string,
+      count: number,
+    ) => {
+      const p = prevUiRef.current;
+      if (p.detected !== detected) { p.detected = detected; setFaceDetected(detected); }
+      if (p.aligned !== aligned) { p.aligned = aligned; setIsAligned(aligned); }
+      if (p.lightingState !== lState) { p.lightingState = lState; setLightingState(lState); }
+      if (p.lightingText !== lText) { p.lightingText = lText; setLightingText(lText); }
+      if (p.hint !== hint) { p.hint = hint; setAlignmentHint(hint); }
+      if (p.count !== count) { p.count = count; setAcneCount(count); }
+    };
 
-      if (!video || !stage || !loaded || video.readyState < 2 || cameraPermissionDenied) {
+    const detectFrame = (time: number) => {
+      if (capturing) return;
+
+      const video = webcamRef.current?.video;
+      const loaded = landmarkerRef.current;
+      const overlayCtx = overlayCanvasRef.current?.getContext('2d');
+      const { cw, ch, oval } = layoutRef.current;
+
+      if (!video || !loaded || video.readyState < 2 || cw === 0 || ch === 0) {
         animRef.current = requestAnimationFrame(detectFrame);
         return;
       }
 
-      // Throttle to ~16 fps for smooth performance and battery optimization
-      if (time - lastCheck > 60) {
-        lastCheck = time;
+      // Run inference only when a new video frame arrived and >= 85ms elapsed (~12fps tracking, 60fps video)
+      if (time - lastDetectTime >= 85 && video.currentTime !== lastVideoTime) {
+        lastDetectTime = time;
+        lastVideoTime = video.currentTime;
         const vw = video.videoWidth;
         const vh = video.videoHeight;
-        const cw = stage.clientWidth;
-        const ch = stage.clientHeight;
 
-        if (vw > 0 && vh > 0 && cw > 0 && ch > 0) {
+        if (vw > 0 && vh > 0) {
           try {
             const result = loaded.landmarker.detectForVideo(video, time);
             const face = result.faceLandmarks?.[0];
+            const matrix = result.facialTransformationMatrixes?.[0]?.data;
 
             if (!face || face.length === 0) {
-              setFaceDetected(false);
-              setLiveBoxes([]);
+              smoothMapRef.current.clear();
+              if (overlayCtx) overlayCtx.clearRect(0, 0, cw, ch);
+              commitUiIfChanged(false, false, 'idle', 'Memeriksa cahaya...', 'Arahkan wajah ke dalam lingkaran', 0);
             } else {
-              setFaceDetected(true);
               const isMirrored = facingMode === 'user';
               const scale = Math.max(cw / vw, ch / vh);
               const displayedW = vw * scale;
@@ -157,221 +343,264 @@ export default function Scan() {
               const offX = (cw - displayedW) / 2;
               const offY = (ch - displayedH) / 2;
 
-              // Transform normalized video coordinate (0-1) to stage pixel
               const toStage = (p: { x: number; y: number }) => {
                 const px = offX + p.x * displayedW;
                 const py = offY + p.y * displayedH;
-                return {
-                  x: isMirrored ? cw - px : px,
-                  y: py,
-                };
+                return { x: isMirrored ? cw - px : px, y: py };
               };
 
-              // Calculate exact center and radius of the guide oval from DOM
-              let ovalCx = cw / 2;
-              let ovalCy = ch * 0.44;
-              let ovalRx = cw * 0.38;
-              let ovalRy = ch * 0.36;
+              const ovalContourPts = FACE_OVAL_INDICES.map((idx) => toStage(face[idx]));
+              const topHead = toStage(face[10]);
+              const chinTip = toStage(face[152]);
+              const headSpanPx = Math.hypot(topHead.x - chinTip.x, topHead.y - chinTip.y);
 
-              if (ovalRef.current && stageRef.current) {
-                const ovalRect = ovalRef.current.getBoundingClientRect();
-                const stageRect = stageRef.current.getBoundingClientRect();
-                if (ovalRect.width > 0 && ovalRect.height > 0) {
-                  ovalCx = (ovalRect.left - stageRect.left) + ovalRect.width / 2;
-                  ovalCy = (ovalRect.top - stageRect.top) + ovalRect.height / 2;
-                  ovalRx = ovalRect.width / 2;
-                  ovalRy = ovalRect.height / 2;
+              const posCheck = checkPositionInOval(ovalContourPts, oval, headSpanPx);
+              const gazeCheck = checkGaze(matrix);
+
+              // Throttle lighting pixel read to every 250ms
+              if (sctx && time - lastLightTime >= 250) {
+                lastLightTime = time;
+                const vb = boundsOf(face.map((p) => ({ x: p.x * vw, y: p.y * vh })));
+                const sx = Math.max(0, vb.minX + vb.width * 0.2);
+                const sy = Math.max(0, vb.minY + vb.height * 0.2);
+                const sw = Math.min(vw - sx, vb.width * 0.6);
+                const sh = Math.min(vh - sy, vb.height * 0.6);
+                if (sw > 4 && sh > 4) {
+                  sctx.drawImage(video, sx, sy, sw, sh, 0, 0, 24, 24);
+                  const light = checkLighting(sctx.getImageData(0, 0, 24, 24).data);
+                  const lText =
+                    light.state === 'ok'
+                      ? 'Cahaya cukup'
+                      : light.hint?.toLowerCase().includes('terang')
+                      ? 'Terlalu terang'
+                      : 'Kurang cahaya';
+                  latestLightCheck = { state: light.state, hint: light.hint, text: lText };
                 }
               }
 
-              // Dynamic box size scaled with face size
-              const leftEdge = toStage(face[234]);
-              const rightEdge = toStage(face[454]);
-              const faceW = Math.abs(rightEdge.x - leftEdge.x);
-              const boxSize = Math.max(18, Math.min(28, faceW * 0.11));
+              const alignedNow =
+                posCheck.state === 'ok' &&
+                gazeCheck.state !== 'bad' &&
+                latestLightCheck.state === 'ok';
 
-                // FILTER: ONLY KEEP BOXES STRICTLY AND COMFORTABLY INSIDE THE OVAL
-                const validBoxes: LiveBox[] = [];
+              const nextHint =
+                posCheck.state === 'bad'
+                  ? posCheck.hint || 'Posisikan wajah di dalam bingkai'
+                  : gazeCheck.state === 'bad'
+                  ? gazeCheck.hint || 'Hadapkan wajah lebih ke kamera'
+                  : latestLightCheck.state === 'bad'
+                  ? latestLightCheck.hint || 'Cari tempat yang lebih terang'
+                  : 'Posisi pas! Siap memotret';
 
-                for (let i = 0; i < CANDIDATE_SKIN_SITES.length; i++) {
-                  const site = CANDIDATE_SKIN_SITES[i];
-                  const pt = toStage(face[site.idx]);
+              const yaw = matrix ? headAngles(matrix).yaw : 0;
+              const prioritizedSites =
+                Math.abs(yaw) < 15
+                  ? CANDIDATE_SKIN_SITES
+                  : [...CANDIDATE_SKIN_SITES].sort((a, b) => {
+                      const preferredSide = yaw > 0 ? 'left' : 'right';
+                      const scoreA = a.side === preferredSide || a.side === 'center' ? 0 : 1;
+                      const scoreB = b.side === preferredSide || b.side === 'center' ? 0 : 1;
+                      return scoreA - scoreB;
+                    });
 
-              // Check distance to oval boundary (using 0.78 inner margin factor so all corners and labels stay 100% inside)
-              const dx = (pt.x - ovalCx) / (ovalRx * 0.78);
-              const dy = (pt.y - ovalCy) / (ovalRy * 0.78);
-              const isInsideOval = (dx * dx + dy * dy) <= 1.0;
+              const boxSize = Math.max(18, Math.min(28, headSpanPx * 0.09));
+              const validBoxes: LiveBox[] = [];
+              const smoothMap = smoothMapRef.current;
 
-              if (!isInsideOval) continue;
+              for (let i = 0; i < prioritizedSites.length; i++) {
+                const site = prioritizedSites[i];
+                const pt = toStage(face[site.idx]);
 
-              // Ensure minimum distance from already added boxes so they don't overlap too much
-              const tooClose = validBoxes.some((b) => {
-                const dist = Math.hypot(b.left - (pt.x - boxSize / 2), b.top - (pt.y - boxSize / 2));
-                return dist < 24;
-              });
+                const dx = (pt.x - oval.cx) / (oval.rx * 0.78);
+                const dy = (pt.y - oval.cy) / (oval.ry * 0.78);
+                if (dx * dx + dy * dy > 1.0) continue;
 
-              if (!tooClose) {
-                const confidence = Math.min(98, Math.max(82, site.baseConf + (i % 3) - 1));
-                validBoxes.push({
-                  id: site.idx,
-                  left: pt.x - boxSize / 2,
-                  top: pt.y - boxSize / 2,
-                  size: boxSize,
-                  confidence,
-                });
-              }
+                const rawLeft = pt.x - boxSize / 2;
+                const rawTop = pt.y - boxSize / 2;
 
-              if (validBoxes.length >= 7) break; // Limit to 7 neat, readable boxes
-            }
+                const tooClose = validBoxes.some((b) => Math.hypot(b.left - rawLeft, b.top - rawTop) < 24);
+                if (!tooClose) {
+                  // Smooth movement with exponential moving average
+                  const prev = smoothMap.get(site.idx);
+                  const alpha = 0.45;
+                  const sLeft = prev ? prev.left + (rawLeft - prev.left) * alpha : rawLeft;
+                  const sTop = prev ? prev.top + (rawTop - prev.top) * alpha : rawTop;
+                  const sSize = prev ? prev.size + (boxSize - prev.size) * alpha : boxSize;
+                  smoothMap.set(site.idx, { left: sLeft, top: sTop, size: sSize });
 
-            setLiveBoxes(validBoxes);
-
-            // Live Lighting Check
-            if (sctx) {
-              const vb = boundsOf(face.map((p) => ({ x: p.x * vw, y: p.y * vh })));
-              const sx = Math.max(0, vb.minX + vb.width * 0.2);
-              const sy = Math.max(0, vb.minY + vb.height * 0.2);
-              const sw = Math.min(vw - sx, vb.width * 0.6);
-              const sh = Math.min(vh - sy, vb.height * 0.6);
-
-              if (sw > 4 && sh > 4) {
-                sctx.drawImage(video, sx, sy, sw, sh, 0, 0, 24, 24);
-                const imgData = sctx.getImageData(0, 0, 24, 24).data;
-                const light = checkLighting(imgData);
-                if (light.state === 'ok') {
-                  setLightingText('Cahaya cukup');
-                } else if (light.hint?.toLowerCase().includes('terang')) {
-                  setLightingText('Cahaya terlalu terang');
-                } else {
-                  setLightingText('Kurang cahaya');
+                  validBoxes.push({
+                    id: site.idx,
+                    left: sLeft,
+                    top: sTop,
+                    size: sSize,
+                    confidence: Math.min(98, Math.max(82, site.baseConf + (i % 3) - 1)),
+                  });
                 }
+
+                if (validBoxes.length >= 7) break;
               }
+
+              if (overlayCtx) drawBoxesCanvas(overlayCtx, cw, ch, validBoxes);
+              commitUiIfChanged(
+                true,
+                alignedNow,
+                latestLightCheck.state,
+                latestLightCheck.text,
+                nextHint,
+                validBoxes.length,
+              );
             }
-          }
           } catch {
-          // recovery on dropped frame
+            // recover silently on dropped frame
+          }
         }
       }
-    }
+
+      animRef.current = requestAnimationFrame(detectFrame);
+    };
 
     animRef.current = requestAnimationFrame(detectFrame);
-  };
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, [cameraConsentGiven, cameraPermissionDenied, capturing, facingMode]);
 
-  animRef.current = requestAnimationFrame(detectFrame);
+  const canCapture = landmarkerFailed
+    ? !cameraPermissionDenied
+    : faceDetected && isAligned && !cameraPermissionDenied;
 
-  return () => {
-    if (animRef.current) cancelAnimationFrame(animRef.current);
-  };
-}, [cameraPermissionDenied, facingMode]);
+  const handleCapture = useCallback(async () => {
+    if (!canCapture) {
+      toast(alignmentHint || 'Posisikan wajah pas di dalam garis lingkaran terlebih dahulu.', 'error');
+      return;
+    }
 
-// Capture Feature & REST API Multipart/Form-Data Integration
-const handleCapture = useCallback(async () => {
-  setAnalyzing(true);
-  setApiError(null);
-  try {
-    let file: File;
     const video = webcamRef.current?.video;
-
-    if (video && !cameraPermissionDenied) {
-      // Capture exact frame as Blob from live video stream
-      const blob = await frameToBlob(video, { mirrored: facingMode === 'user' });
-      file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
-    } else {
-      // Fallback sample file
-      const res = await fetch(heroineImg);
-      const blob = await res.blob();
-      file = new File([blob], 'scan-photo.png', { type: 'image/png' });
+    if (!video || video.readyState < 2) {
+      toast('Kamera belum siap. Tunggu sebentar.', 'error');
+      return;
     }
 
-    const imageUrl = URL.createObjectURL(file);
+    // Halt live detection immediately so CPU is 100% free for instant JPEG encode
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    setCapturing(true);
+    setShutterFlash(true);
 
-    // Send multipart/form-data request to classifier service
-    if (user && api.analyze) {
-      try {
-        const res = await api.analyze(file, { source: 'mobile', input_method: 'camera' });
-        setScan(res, imageUrl);
-        navigate(`/analysis/${res.analysis_id}`);
-        return;
-      } catch {
-        // fallback to detect endpoint
-      }
+    try {
+      const getCachedCanvas = (): CaptureCanvas => {
+        if (!captureCanvasRef.current) {
+          captureCanvasRef.current = document.createElement('canvas');
+        }
+        return captureCanvasRef.current as unknown as CaptureCanvas;
+      };
+
+      const blob = await frameToBlob(video, {
+        mirrored: facingMode === 'user',
+        quality: 0.85,
+        maxDimension: 1280,
+        makeCanvas: getCachedCanvas,
+      });
+      const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const previewUrl = URL.createObjectURL(file);
+      setPendingPhoto({ file, previewUrl, source: 'camera', originalFile: file });
+      navigate('/scan/preview');
+    } catch {
+      setShutterFlash(false);
+      setCapturing(false);
+      toast('Gagal mengambil gambar dari kamera. Silakan coba lagi.', 'error');
     }
+  }, [alignmentHint, canCapture, facingMode, navigate, setPendingPhoto, toast]);
 
-    // Guest / Direct Detection endpoint (POST /detect with FormData)
-    const detection = await api.detect(file, { source: 'mobile', input_method: 'camera' });
-    setDetection(detection, imageUrl);
-    navigate('/detect-result');
-  } catch {
-    setApiError('Gagal memproses gambar. Silakan coba kembali.');
-    navigate('/detect-result');
-  } finally {
-    setAnalyzing(false);
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setPendingPhoto({ file, previewUrl, source: 'gallery', originalFile: file });
+    navigate('/scan/preview');
+  };
+
+  const handleAllowCamera = () => {
+    setCameraIntroSeen(true);
+    setCameraConsentGiven(true);
+    setCameraPermissionDenied(false);
+    setCamKey((k) => k + 1);
+  };
+
+  const retryCameraPermission = () => {
+    setCameraPermissionDenied(false);
+    setCameraConsentGiven(true);
+    setCamKey((k) => k + 1);
+  };
+
+  const goBackHome = () => navigate(user ? '/dashboard' : '/');
+
+  const galleryInput = (
+    <input
+      type="file"
+      ref={fileInputRef}
+      onChange={handleFileUpload}
+      accept="image/*"
+      className="hidden"
+    />
+  );
+
+  if (cameraPermissionDenied) {
+    return (
+      <>
+        {galleryInput}
+        <CameraDeniedView
+          onBack={goBackHome}
+          onRetryCamera={retryCameraPermission}
+          onPickGallery={() => fileInputRef.current?.click()}
+          onGoHome={goBackHome}
+        />
+      </>
+    );
   }
-}, [cameraPermissionDenied, facingMode, navigate, setDetection, setScan, user]);
 
-const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  setAnalyzing(true);
-  setApiError(null);
-  const imageUrl = URL.createObjectURL(file);
+  if (!cameraConsentGiven) {
+    return (
+      <>
+        {galleryInput}
+        <CameraConsentView
+          onBack={goBackHome}
+          onAllowCamera={handleAllowCamera}
+          onPickGallery={() => fileInputRef.current?.click()}
+        />
+      </>
+    );
+  }
 
-  api.detect(file, { source: 'mobile', input_method: 'upload' })
-    .then((detection) => {
-      setDetection(detection, imageUrl);
-      navigate('/detect-result');
-    })
-    .catch(() => {
-      navigate('/detect-result');
-    })
-    .finally(() => setAnalyzing(false));
-};
+  return (
+    <div className="flex-1 flex flex-col justify-between bg-[#0F172A] text-white overflow-hidden select-none pt-[env(safe-area-inset-top)]">
+      {galleryInput}
 
-const toggleCamera = () => {
-  setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'));
-};
+      {/* Camera Header Bar */}
+      <div className="flex items-center justify-between px-5 pt-3 pb-2 z-20">
+        <button
+          onClick={goBackHome}
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:bg-white/10 active:scale-95 transition-all"
+          aria-label="Tutup"
+        >
+          <X className="w-6 h-6 stroke-[2]" />
+        </button>
 
-const retryCameraPermission = () => {
-  setCameraPermissionDenied(false);
-  setCamKey((k) => k + 1);
-};
+        <h1 className="text-[17px] font-bold text-white tracking-tight">Pindai wajah</h1>
 
-return (
-  <div className="flex-1 flex flex-col justify-between bg-[#0F172A] text-white overflow-hidden select-none">
-    {/* Top Status Bar (Dark mode) */}
-    <MobileStatusBar dark={true} time="08.42" />
-
-    {/* Camera Header Bar */}
-    <div className="flex items-center justify-between px-5 py-2 z-20">
-      <button
-        onClick={() => navigate(user ? '/dashboard' : '/')}
-        className="w-10 h-10 rounded-full flex items-center justify-center text-white/90 hover:bg-white/10 active:scale-95 transition-all"
-        aria-label="Tutup"
-      >
-        <X className="w-6 h-6 stroke-[2]" />
-      </button>
-
-      <h1 className="text-[17px] font-bold text-white tracking-tight">
-        Pindai wajah
-      </h1>
-
-      <button
-        onClick={() => setFlashOn(!flashOn)}
-        className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${flashOn ? 'text-amber-300 bg-amber-400/20' : 'text-white/80 hover:bg-white/10'
+        <button
+          onClick={handleToggleFlash}
+          className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+            flashOn ? 'text-amber-300 bg-amber-400/20' : 'text-white/80 hover:bg-white/10'
           }`}
-        aria-label="Flash"
-      >
-        <ZapOff className="w-5 h-5 stroke-[2]" />
-      </button>
-    </div>
+          aria-label="Flash"
+        >
+          {flashOn ? <Zap className="w-5 h-5 stroke-[2]" /> : <ZapOff className="w-5 h-5 stroke-[2]" />}
+        </button>
+      </div>
 
-    {/* Main Camera Viewfinder Stage (FULL BLEED COVER, NO BLACK LETTERBOX) */}
-    <div
-      ref={stageRef}
-      className="relative w-full flex-1 overflow-hidden bg-black"
-    >
-      {/* Live Camera (100% full cover edge-to-edge without black letterbox) */}
-      {!cameraPermissionDenied ? (
+      {/* Main Camera Viewfinder Stage */}
+      <div ref={stageRef} className="relative w-full flex-1 overflow-hidden bg-black">
         <Webcam
           key={camKey}
           ref={webcamRef}
@@ -381,6 +610,7 @@ return (
             facingMode,
             width: { ideal: 1280 },
             height: { ideal: 720 },
+            frameRate: { ideal: 30 },
           }}
           onUserMediaError={() => setCameraPermissionDenied(true)}
           mirrored={facingMode === 'user'}
@@ -397,228 +627,193 @@ return (
             objectPosition: 'center',
           }}
         />
-      ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-6 space-y-4 max-w-xs mx-auto z-20">
-            <div className="w-16 h-16 rounded-full bg-slate-800/90 text-amber-400 flex items-center justify-center border border-slate-700 shadow-lg">
-              <CameraOff className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="font-bold text-base text-white">Akses Kamera Dibutuhkan</h3>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-                Izinkan akses kamera di browsermu untuk melakukan deteksi langsung, atau unggah foto wajah dari galeri.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 w-full pt-1">
-              <button
-                onClick={retryCameraPermission}
-                className="w-full bg-[#2563EB] hover:bg-blue-700 text-white font-semibold text-xs py-2.5 rounded-xl transition-all"
-              >
-                Coba Akses Kamera Lagi
-              </button>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs py-2.5 rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Pilih dari Galeri</span>
-              </button>
-            </div>
+
+        {/* Instant Shutter Flash Overlay */}
+        {shutterFlash && (
+          <div className="absolute inset-0 bg-white/80 z-30 pointer-events-none transition-opacity duration-150" />
+        )}
+
+        {/* GPU-composited Bounding Box Canvas (zero React re-renders) */}
+        <canvas
+          ref={overlayCanvasRef}
+          className="absolute inset-0 w-full h-full pointer-events-none z-10"
+        />
+
+        {/* Top-left Status Pill */}
+        <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1.5 border border-white/10 shadow-lg">
+          <span
+            className={`w-2 h-2 rounded-full ${
+              canCapture
+                ? 'bg-emerald-400 animate-pulse'
+                : faceDetected
+                ? 'bg-amber-400'
+                : 'bg-slate-400'
+            }`}
+          />
+          <span className={`text-[10px] font-extrabold tracking-wider ${canCapture ? 'text-emerald-400' : 'text-white'}`}>
+            DETEKSI LANGSUNG
+          </span>
+        </div>
+
+        {/* Top-right Acne Count */}
+        {faceDetected && acneCount > 0 && (
+          <div className="absolute top-4 right-4 z-20 bg-emerald-500/95 text-slate-950 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-md border border-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
+            <span className="text-[11px] font-black tracking-tight tnum">
+              Acne Count: {acneCount}
+            </span>
           </div>
         )}
 
-          {/* Top-left: DETEKSI LANGSUNG Status Pill */}
-          <div className="absolute top-4 left-4 z-20 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1.5 border border-white/10 shadow-lg">
-            <span
-              className={`w-2 h-2 rounded-full ${faceDetected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
-                }`}
+        {/* Guide Oval & Corner Brackets */}
+        <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center p-5">
+          <div className="relative w-full h-[88%] max-w-[280px]">
+            <div
+              className={`absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] rounded-tl-2xl transition-colors ${
+                canCapture ? 'border-emerald-400' : faceDetected ? 'border-amber-300' : 'border-white'
+              }`}
             />
-            <span className="text-[10px] font-extrabold text-emerald-400 tracking-wider">
-              DETEKSI LANGSUNG
-            </span>
-          </div>
+            <div
+              className={`absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] rounded-tr-2xl transition-colors ${
+                canCapture ? 'border-emerald-400' : faceDetected ? 'border-amber-300' : 'border-white'
+              }`}
+            />
+            <div
+              className={`absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] rounded-bl-2xl transition-colors ${
+                canCapture ? 'border-emerald-400' : faceDetected ? 'border-amber-300' : 'border-white'
+              }`}
+            />
+            <div
+              className={`absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] rounded-br-2xl transition-colors ${
+                canCapture ? 'border-emerald-400' : faceDetected ? 'border-amber-300' : 'border-white'
+              }`}
+            />
 
-          {/* Total Acne Count Indicator: Only shows count of boxes STRICTLY inside the oval */}
-          {faceDetected && liveBoxes.length > 0 && (
-            <div className="absolute top-4 right-4 z-20 bg-emerald-500/95 text-slate-950 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-lg backdrop-blur-md border border-emerald-300">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
-              <span className="text-[11px] font-black tracking-tight">
-                Acne Count: {liveBoxes.length}
-              </span>
-            </div>
-          )}
-
-            {/* Dynamic Face Guide Overlays */}
-            <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center p-5">
-              <div className="relative w-full h-[88%] max-w-[280px]">
-                {/* 4 Corner Viewfinder Brackets */}
-                <div
-                  className={`absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] rounded-tl-2xl transition-colors ${faceDetected ? 'border-emerald-400' : 'border-white'
-                    }`}
-                />
-                <div
-                  className={`absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] rounded-tr-2xl transition-colors ${faceDetected ? 'border-emerald-400' : 'border-white'
-                    }`}
-                />
-                <div
-                  className={`absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] rounded-bl-2xl transition-colors ${faceDetected ? 'border-emerald-400' : 'border-white'
-                    }`}
-                />
-                <div
-                  className={`absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] rounded-br-2xl transition-colors ${faceDetected ? 'border-emerald-400' : 'border-white'
-                    }`}
-                />
-
-                {/* Dashed Oval Face Shape (measured by ovalRef) */}
-                <div
+            <div
               ref={ovalRef}
-                  className={`absolute inset-x-3 inset-y-5 border-2 border-dashed rounded-[50%] transition-colors duration-200 ${faceDetected
-                      ? 'border-emerald-400/80 shadow-[0_0_15px_rgba(52,211,153,0.3)]'
-                      : 'border-white/60'
-                    }`}
-                />
+              className={`absolute inset-x-3 inset-y-5 border-2 border-dashed rounded-[50%] transition-colors duration-200 ${
+                canCapture
+                  ? 'border-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.4)]'
+                  : faceDetected
+                  ? 'border-amber-300/80'
+                  : 'border-white/70'
+              }`}
+            />
 
-                {/* Horizontal Eye/Nose Guideline */}
-                <div className="absolute top-[40%] inset-x-2 border-t border-white/40" />
-              </div>
-            </div>
-
-              {/* Bounding Boxes: STRICTLY rendered ONLY inside the guide oval */ }
-        {!cameraPermissionDenied &&
-              liveBoxes.map((box) => (
-                <div
-                  key={box.id}
-                  style={{
-                    top: `${box.top}px`,
-                    left: `${box.left}px`,
-                    width: `${box.size}px`,
-                    height: `${box.size}px`,
-                  }}
-                  className="absolute z-10 border-2 border-emerald-400/95 rounded-[4px] bg-emerald-400/20 shadow-[0_0_10px_rgba(52,211,153,0.6)] pointer-events-none transition-all duration-75"
-                >
-                  {/* Confidence Score Tag */}
-                  <span className="absolute -top-3.5 left-0 bg-emerald-500 text-slate-950 font-black text-[9px] px-1 py-[0.5px] rounded-[3px] shadow-sm leading-none flex items-center">
-                    {box.confidence}%
-                  </span>
-                </div>
-          ))}
-
-            {/* Bottom Floating Bar inside Camera: Live Lighting & Face State */}
-            <div className="absolute bottom-4 inset-x-5 z-20 bg-[#1E293B]/90 backdrop-blur-md rounded-2xl px-4 py-2 flex items-center justify-between border border-white/10 text-xs shadow-lg">
-              <div className="flex items-center gap-1.5 text-slate-200">
-                <Sun
-                  className={`w-4 h-4 ${lightingText === 'Cahaya cukup' ? 'text-amber-400' : 'text-slate-400'
-                    }`}
-                />
-                <span className="font-medium text-[12px]">{lightingText}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-slate-200">
-                <ScanFace
-                  className={`w-4 h-4 ${faceDetected ? 'text-emerald-400' : 'text-slate-400'
-                    }`}
-                />
-                <span className="font-medium text-[12px]">
-                  {faceDetected ? 'Wajah terdeteksi' : 'Mencari wajah...'}
-                </span>
-              </div>
-            </div>
-
-            {/* Analyzing Spinner Overlay during API Request */}
-            {analyzing && (
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-30 flex flex-col items-center justify-center gap-3 p-4 text-center">
-                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <div>
-                  <p className="text-sm font-bold text-white">Menganalisis wajah...</p>
-                  <p className="text-xs text-slate-400 mt-1">Mengirim citra ke layanan classifier AI</p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Control Section */}
-          <div className="px-6 pt-3 pb-3 space-y-3 z-20">
-            <div className="text-center">
-              <h2 className="text-[15px] font-bold text-white tracking-tight">
-                Posisikan wajah di dalam bingkai
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Lepas kacamata • Tanpa filter • Tatap kamera
-              </p>
-            </div>
-
-            {/* Front / Back Toggle Pill */}
-            <div className="flex justify-center">
-              <div className="bg-[#1E293B] p-1 rounded-full flex items-center gap-1 border border-slate-700/60 shadow-inner">
-                <button
-                  onClick={() => setFacingMode('user')}
-                  className={`px-5 py-1.5 rounded-full text-xs font-semibold transition-all ${facingMode === 'user'
-                      ? 'bg-white text-slate-900 shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                  Depan
-                </button>
-                <button
-                  onClick={() => setFacingMode('environment')}
-                  className={`px-5 py-1.5 rounded-full text-xs font-semibold transition-all ${facingMode === 'environment'
-                      ? 'bg-white text-slate-900 shadow-md'
-                      : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                  Belakang
-                </button>
-              </div>
-            </div>
-
-            {/* Action Buttons Row: Gallery - CAPTURE Button - Flip */}
-            <div className="flex items-center justify-around pt-1">
-              {/* Gallery Upload Button */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 flex items-center justify-center text-white border border-slate-700/60 transition-all shadow-md"
-                aria-label="Pilih dari galeri"
-              >
-                <ImageIcon className="w-5 h-5 text-slate-300" />
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept="image/*"
-                className="hidden"
-              />
-
-              {/* Tombol CAPTURE */}
-              <button
-                onClick={handleCapture}
-                disabled={analyzing}
-                className="w-18 h-18 rounded-full border-4 border-white p-1 flex items-center justify-center active:scale-90 transition-transform shadow-xl group cursor-pointer"
-                aria-label="Ambil foto dan deteksi"
-              >
-                <div className="w-14 h-14 rounded-full bg-white group-hover:bg-slate-100 transition-colors" />
-              </button>
-
-              {/* Flip Camera Button */}
-              <button
-                onClick={toggleCamera}
-                className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 flex items-center justify-center text-white border border-slate-700/60 transition-all shadow-md"
-                aria-label="Beralih kamera"
-              >
-                <RefreshCw className="w-5 h-5 text-slate-300" />
-              </button>
-            </div>
-
-            {/* Caption */}
-            <p className="text-[11px] text-slate-400 text-center pt-0.5">
-              {apiError ? (
-                <span className="text-amber-400">{apiError}</span>
-              ) : (
-                'Foto dianalisis setelah kamu menekan tombol kamera.'
-              )}
-            </p>
-
-            {/* Home Indicator Bar */}
-            <div className="w-36 h-1 bg-white/70 rounded-full mx-auto mt-2 mb-1" />
+            <div className="absolute top-[40%] inset-x-2 border-t border-white/40" />
           </div>
         </div>
-      );
+
+        {/* Bottom Status Pill */}
+        <div className="absolute bottom-4 inset-x-4 flex justify-center z-20 pointer-events-none">
+          <div className="bg-[#1E293B]/85 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-3 text-xs border border-white/10 shadow-lg max-w-full">
+            <div className="flex items-center gap-1.5 text-slate-200 shrink-0">
+              <Sun className={`w-3.5 h-3.5 ${lightingState === 'ok' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span className="font-medium text-[11px]">{lightingText}</span>
+            </div>
+            <div className="w-[1px] h-3 bg-white/20 shrink-0" />
+            <div className="flex items-center gap-1.5 text-slate-200 truncate">
+              <ScanFace
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  canCapture ? 'text-emerald-400' : faceDetected ? 'text-amber-300' : 'text-slate-400'
+                }`}
+              />
+              <span className={`font-medium text-[11px] truncate ${canCapture ? 'text-emerald-300' : ''}`}>
+                {!landmarkerReady && !landmarkerFailed
+                  ? 'Menyiapkan deteksi...'
+                  : canCapture
+                  ? 'Wajah pas di garis'
+                  : faceDetected
+                  ? 'Belum pas di garis'
+                  : 'Mencari wajah...'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Control Section */}
+      <div className="px-6 pt-3 pb-5 space-y-3 z-20 bg-[#0F172A]">
+        <div className="text-center">
+          <h2 className={`text-[15px] font-bold tracking-tight transition-colors ${canCapture ? 'text-emerald-400' : 'text-white'}`}>
+            {!landmarkerReady && !landmarkerFailed
+              ? 'Memuat pendeteksi wajah...'
+              : alignmentHint}
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Kepala lurus, miring, atau menyamping diperbolehkan asalkan pas di garis
+          </p>
+        </div>
+
+        <div className="flex justify-center">
+          <div className="bg-[#1E293B] p-1 rounded-full flex items-center gap-1 border border-slate-700/60 shadow-inner">
+            <button
+              onClick={() => setFacingMode('user')}
+              className={`px-5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                facingMode === 'user'
+                  ? 'bg-white text-slate-900 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Depan
+            </button>
+            <button
+              onClick={() => setFacingMode('environment')}
+              className={`px-5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                facingMode === 'environment'
+                  ? 'bg-white text-slate-900 shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Belakang
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-around pt-1">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 flex items-center justify-center text-white border border-slate-700/60 transition-all shadow-md"
+            aria-label="Pilih dari galeri"
+          >
+            <ImageIcon className="w-5 h-5 text-slate-300" />
+          </button>
+
+          <button
+            onClick={handleCapture}
+            disabled={!canCapture || capturing}
+            aria-disabled={!canCapture || capturing}
+            className={`w-[72px] h-[72px] rounded-full border-4 p-1 flex items-center justify-center transition-all shadow-xl ${
+              canCapture && !capturing
+                ? 'border-emerald-400 active:scale-90 cursor-pointer'
+                : 'border-slate-600 opacity-55 cursor-not-allowed'
+            }`}
+            aria-label={canCapture ? 'Ambil foto dan lanjutkan' : 'Posisikan wajah pas di garis untuk memotret'}
+          >
+            <div
+              className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
+                canCapture && !capturing ? 'bg-white hover:bg-emerald-50' : 'bg-slate-700 text-slate-300'
+              }`}
+            >
+              {!canCapture && <Lock className="w-5 h-5" />}
+            </div>
+          </button>
+
+          <button
+            onClick={() => setFacingMode((prev) => (prev === 'user' ? 'environment' : 'user'))}
+            className="w-12 h-12 rounded-full bg-[#1E293B] hover:bg-slate-700 active:scale-95 flex items-center justify-center text-white border border-slate-700/60 transition-all shadow-md"
+            aria-label="Beralih kamera"
+          >
+            <RefreshCw className="w-5 h-5 text-slate-300" />
+          </button>
+        </div>
+
+        <p className="text-[11px] text-slate-400 text-center pt-0.5">
+          {canCapture
+            ? 'Tekan tombol kamera untuk melihat pratinjau foto.'
+            : 'Tombol potret aktif otomatis saat wajah pas di dalam lingkaran.'}
+        </p>
+      </div>
+    </div>
+  );
 }

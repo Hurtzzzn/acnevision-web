@@ -6,6 +6,7 @@ import { COPY } from '@acnevision/shared';
  */
 
 export interface Point { x: number; y: number }
+export interface OvalBounds { cx: number; cy: number; rx: number; ry: number }
 export type CheckState = 'ok' | 'bad' | 'idle';
 export interface Check { state: CheckState; hint?: string }
 export interface GuideChecks { lighting: Check; position: Check; gaze: Check }
@@ -18,15 +19,18 @@ export const NO_FACE_CHECKS: GuideChecks = { lighting: { state: 'idle' }, positi
 export const allOk = (c: GuideChecks) => c.lighting.state === 'ok' && c.position.state === 'ok' && c.gaze.state === 'ok';
 
 // Lighting: mean brightness (0 to 255) of the face area, and the share of near-white pixels (glare).
-export const MIN_BRIGHTNESS = 70;
-export const MAX_BRIGHTNESS = 200;
-export const MAX_GLARE_SHARE = 0.12;
-// Gaze: head turn limits in degrees. Loose on yaw, since people turn a little to show the cheek.
-export const MAX_YAW_DEG = 35;
-export const MAX_PITCH_DEG = 25;
-// Position: the face height must fill this share of the oval height, and every landmark must sit inside the oval (with slack).
-export const MIN_FACE_SHARE = 0.62;
-const OVAL_SLACK = 1.06;
+export const MIN_BRIGHTNESS = 55;
+export const MAX_BRIGHTNESS = 220;
+export const MAX_GLARE_SHARE = 0.16;
+
+// Gaze: generous yaw & pitch limits so angled/side-turned and tilted faces from real datasets remain supported.
+export const MAX_YAW_DEG = 60;
+export const MAX_PITCH_DEG = 40;
+
+// Position: the face span must fill this share of the oval height, and landmarks must fit inside the oval (with slack).
+export const MIN_FACE_SHARE = 0.54;
+export const MAX_FACE_SHARE = 0.96;
+const OVAL_SLACK = 1.08;
 
 /** Mean brightness and glare share from RGBA pixel data. */
 export function measureLight(rgba: ArrayLike<number>): { mean: number; glare: number } {
@@ -49,12 +53,19 @@ export function checkLighting(rgba: ArrayLike<number>): Check {
   return { state: 'ok' };
 }
 
-/** Yaw and pitch in degrees from MediaPipe's 4x4 facial transformation matrix (column-major, rotation in the top-left 3x3). */
-export function headAngles(m: ArrayLike<number>): { yaw: number; pitch: number } {
+/** Yaw, pitch, and roll in degrees from MediaPipe's 4x4 facial transformation matrix (column-major). */
+export function headAngles(m: ArrayLike<number>): { yaw: number; pitch: number; roll: number } {
   const deg = 180 / Math.PI;
-  return { yaw: Math.asin(Math.max(-1, Math.min(1, -m[2]))) * deg, pitch: Math.atan2(m[6], m[10]) * deg };
+  const yaw = Math.asin(Math.max(-1, Math.min(1, -m[2]))) * deg;
+  const pitch = Math.atan2(m[6], m[10]) * deg;
+  const roll = Math.atan2(m[1], m[0]) * deg;
+  return { yaw, pitch, roll };
 }
 
+/**
+ * Checks whether head orientation is within supported limits.
+ * Head roll (tilting head sideways) is explicitly permitted without penalty; only extreme turn/pitch (> 60° yaw or > 40° pitch) is flagged.
+ */
 export function checkGaze(m: ArrayLike<number> | undefined): Check {
   if (!m || m.length < 16) return { state: 'idle' };
   const { yaw, pitch } = headAngles(m);
@@ -62,7 +73,7 @@ export function checkGaze(m: ArrayLike<number> | undefined): Check {
 }
 
 /** The guide oval in stage pixels: centered, 70% of the stage height, 3:4 (matches the dashed oval drawn in PhotoInput). */
-export function guideOval(width: number, height: number) {
+export function guideOval(width: number, height: number): OvalBounds {
   const ry = height * 0.35;
   return { cx: width / 2, cy: height / 2, rx: ry * 0.75, ry };
 }
@@ -78,14 +89,46 @@ export function boundsOf(points: readonly Point[]) {
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
 
+/**
+ * Evaluates whether face landmarks sit cleanly inside `oval`, accounting for tilted/rotated heads (roll) and sideways yaw.
+ * Enforces strict alignment inside the oval lines for capture gating.
+ */
+export function checkPositionInOval(
+  points: readonly Point[],
+  oval: OvalBounds,
+  headSpanPx?: number,
+): Check {
+  if (points.length === 0) return { state: 'bad', hint: G.noFace };
+  const b = boundsOf(points);
+  const span = headSpanPx ?? Math.max(b.height, Math.hypot(b.width, b.height) * 0.78);
+  const share = span / (oval.ry * 2);
+
+  // Center of the face must sit reasonably close to the center of the guide oval
+  const faceCx = (b.minX + b.maxX) / 2;
+  const faceCy = (b.minY + b.maxY) / 2;
+  const centerOffsetSq = ((faceCx - oval.cx) / (oval.rx * 0.45)) ** 2 + ((faceCy - oval.cy) / (oval.ry * 0.38)) ** 2;
+
+  // At least 90% of facial landmarks must sit inside the oval (allowing minor edge slack for turned/tilted faces)
+  let outsideCount = 0;
+  for (const p of points) {
+    const normSq = ((p.x - oval.cx) / oval.rx) ** 2 + ((p.y - oval.cy) / oval.ry) ** 2;
+    if (normSq > OVAL_SLACK ** 2) outsideCount++;
+  }
+  const outsideRatio = outsideCount / points.length;
+
+  if (outsideRatio > 0.12) {
+    return { state: 'bad', hint: share > MAX_FACE_SHARE ? G.tooClose : G.offCenter };
+  }
+  if (centerOffsetSq > 1.0) {
+    return { state: 'bad', hint: G.offCenter };
+  }
+  if (share < MIN_FACE_SHARE) {
+    return { state: 'bad', hint: G.tooFar };
+  }
+  return { state: 'ok' };
+}
+
 /** `points` are face landmarks in stage pixels. */
 export function checkPosition(points: readonly Point[], stageW: number, stageH: number): Check {
-  if (points.length === 0) return { state: 'bad', hint: G.noFace };
-  const oval = guideOval(stageW, stageH);
-  const b = boundsOf(points);
-  const outside = points.some((p) => ((p.x - oval.cx) / oval.rx) ** 2 + ((p.y - oval.cy) / oval.ry) ** 2 > OVAL_SLACK ** 2);
-  const share = b.height / (oval.ry * 2);
-  if (outside) return { state: 'bad', hint: share > 0.95 ? G.tooClose : G.offCenter };
-  if (share < MIN_FACE_SHARE) return { state: 'bad', hint: G.tooFar };
-  return { state: 'ok' };
+  return checkPositionInOval(points, guideOval(stageW, stageH));
 }

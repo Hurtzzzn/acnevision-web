@@ -79,4 +79,13 @@ describe('frameToBlob', () => {
     await expect(frameToBlob({ videoWidth: 0, videoHeight: 0 } as HTMLVideoElement, { makeCanvas: make })).rejects.toThrow();
     expect(make).not.toHaveBeenCalled();
   });
+
+  it('downscales proportionally when maxDimension is smaller than the frame', async () => {
+    const f = fakeCanvas();
+    const hdVideo = { videoWidth: 1920, videoHeight: 1080 } as HTMLVideoElement;
+    await frameToBlob(hdVideo, { maxDimension: 1280, makeCanvas: () => f.canvas });
+    expect(f.canvas.width).toBe(1280);
+    expect(f.canvas.height).toBe(720);
+    expect(f.calls).toContain('draw(0,0,1280,720)');
+  });
 });

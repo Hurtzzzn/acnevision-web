@@ -2,26 +2,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, Sparkles, ScanFace, TrendingUp, MessageSquare, ShieldCheck } from 'lucide-react';
 import heroineImg from '../assets/images/heroine.png';
 import { MobileHeader } from '../components/mobile/MobileHeader';
-import { useAuth } from '../store/auth';
 
 export default function Home() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-
-  const handleQuickLogin = async () => {
-    try {
-      await login('demo@acnevision.test', 'demo12345');
-      navigate('/dashboard');
-    } catch {
-      navigate('/login');
-    }
-  };
 
   return (
     <div className="flex-1 flex flex-col justify-between bg-white overflow-y-auto">
       <div>
         {/* Top Header */}
-        <MobileHeader onLoginClick={handleQuickLogin} />
+        <MobileHeader onLoginClick={() => navigate('/login')} />
 
         <div className="px-5 pt-2 pb-6 space-y-6">
           {/* Hero Visual Card */}
@@ -62,7 +51,6 @@ export default function Home() {
 
           {/* 3 Step List Items */}
           <div className="space-y-3.5 pt-1">
-            {/* Step 1 */}
             <div className="flex items-center gap-3.5">
               <div className="w-11 h-11 rounded-2xl bg-[#EEF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
                 <ScanFace className="w-5 h-5 stroke-[2]" />
@@ -73,7 +61,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Step 2 */}
             <div className="flex items-center gap-3.5">
               <div className="w-11 h-11 rounded-2xl bg-[#EEF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
                 <TrendingUp className="w-5 h-5 stroke-[2]" />
@@ -84,7 +71,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Step 3 */}
             <div className="flex items-center gap-3.5">
               <div className="w-11 h-11 rounded-2xl bg-[#EEF4FF] text-[#2563EB] flex items-center justify-center shrink-0">
                 <MessageSquare className="w-5 h-5 stroke-[2]" />
@@ -99,7 +85,7 @@ export default function Home() {
       </div>
 
       {/* Bottom CTA & Disclaimer */}
-      <div className="px-5 pb-4 space-y-3 pt-2">
+      <div className="px-5 pb-6 space-y-3 pt-2">
         <Link
           to="/scan"
           className="w-full bg-[#2563EB] hover:bg-blue-700 active:scale-[0.99] text-white font-semibold text-[15px] py-3.5 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/25 transition-all"
@@ -114,9 +100,6 @@ export default function Home() {
             Estimasi AI, bukan diagnosis medis. Foto hanya disimpan setelah kamu menyetujuinya.
           </p>
         </div>
-
-        {/* Home bar for guest */}
-        <div className="w-36 h-1 bg-slate-900 rounded-full mx-auto mt-4 mb-1" />
       </div>
     </div>
   );

@@ -13,8 +13,9 @@ const BASE = `${import.meta.env.BASE_URL}mediapipe`;
 
 /**
  * Loads MediaPipe Face Landmarker lazily: the library is a dynamic import (its own chunk), and the wasm and model files are
- * only fetched when this is called, i.e. when the camera opens. Tries the GPU delegate first, then CPU. Rejects when the
- * environment cannot run it; the caller then falls back to the plain camera.
+ * only fetched when this is called, i.e. when the camera opens. Tries the GPU delegate first, then CPU.
+ * Uses relaxed detection/presence/tracking confidence (0.3) so tilted (roll) and side-turned (yaw) faces in the dataset
+ * continue tracking cleanly without dropping landmarks.
  */
 export async function loadFaceLandmarker(): Promise<LoadedLandmarker> {
   const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
@@ -24,6 +25,9 @@ export async function loadFaceLandmarker(): Promise<LoadedLandmarker> {
       baseOptions: { modelAssetPath: `${BASE}/face_landmarker.task`, delegate },
       runningMode: 'VIDEO',
       numFaces: 1,
+      minFaceDetectionConfidence: 0.3,
+      minFacePresenceConfidence: 0.3,
+      minTrackingConfidence: 0.3,
       outputFaceBlendshapes: false,
       outputFacialTransformationMatrixes: true,
     });

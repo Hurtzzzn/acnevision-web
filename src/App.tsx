@@ -7,12 +7,18 @@ import { Spinner } from './components/ui';
 import Home from './pages/Home';
 import HowItWorks from './pages/HowItWorks';
 import Scan from './pages/Scan';
+import PhotoPreview from './pages/PhotoPreview';
 import Result from './pages/Result';
 import DetectResult from './pages/DetectResult';
 import About from './pages/About';
 import { Login, Register, ResetPassword } from './pages/Auth';
 import { DEFAULT_AFTER_LOGIN } from './lib/redirect';
 
+const CropPhoto = lazy(() => import('./pages/CropPhoto'));
+const PhotoConsent = lazy(() => import('./pages/PhotoConsent'));
+const Analyzing = lazy(() => import('./pages/Analyzing'));
+const Compare = lazy(() => import('./pages/Compare'));
+const DeleteData = lazy(() => import('./pages/DeleteData'));
 const UserDashboard = lazy(() => import('./pages/Dashboard'));
 const History = lazy(() => import('./pages/History'));
 const HistoryDetail = lazy(() => import('./pages/HistoryDetail'));
@@ -47,8 +53,13 @@ export default function App() {
             <Route index element={<HomeRoute />} />
             <Route path="how-it-works" element={<HowItWorks />} />
             <Route path="scan" element={<Scan />} />
+            <Route path="scan/preview" element={<PhotoPreview />} />
+            <Route path="scan/crop" element={<CropPhoto />} />
+            <Route path="scan/consent" element={<PhotoConsent />} />
+            <Route path="scan/analyzing" element={<Analyzing />} />
             <Route path="analysis/:analysisId" element={<Result />} />
             <Route path="detect-result" element={<DetectResult />} />
+            <Route path="compare" element={<Compare />} />
             <Route path="about" element={<About />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
@@ -59,6 +70,7 @@ export default function App() {
             <Route path="history/:scanId" element={<HistoryDetail />} />
             <Route path="chat" element={<Chat />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="profile/delete-data" element={<DeleteData />} />
             <Route path="*" element={<NotFound />} />
           </Route>
           <Route path="admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>

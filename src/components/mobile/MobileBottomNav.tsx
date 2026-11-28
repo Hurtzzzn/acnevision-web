@@ -57,7 +57,7 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Navigasi bawah"
-      className="sticky bottom-0 z-40 w-full bg-white/95 backdrop-blur-md border-t border-slate-100 px-3 pt-2 pb-1.5 shadow-[0_-4px_16px_rgba(0,0,0,0.03)]"
+      className="sticky bottom-0 z-40 w-full bg-white/95 backdrop-blur-md border-t border-slate-100 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.03)]"
     >
       <div className="flex items-center justify-around max-w-md mx-auto">
         {items.map((item) => {
@@ -89,9 +89,6 @@ export function MobileBottomNav() {
           );
         })}
       </div>
-
-      {/* Bottom iOS / Android Home Indicator Bar */}
-      <div className="w-36 h-1 bg-slate-900 rounded-full mx-auto mt-2 mb-0.5" />
     </nav>
   );
 }
